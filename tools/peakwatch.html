@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>PeakWatch — How Far Is the Market From Its Peak?</title>
+<meta name="description" content="Live prices for the S&P 500, Nasdaq 100, and MSCI World, each measured against its 52-week high." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,500;0,600;0,700;1,500&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+
+<style>
+  :root{
+    --paper:#FFF1E5;
+    --paper-2:#F7E1CC;
+    --card:#FFFAF4;
+    --ink:#0D1B2A;
+    --ink-soft:#5c5346;
+    --navy:#16324F;
+    --navy-2:#0E2338;
+    --gold:#A9803F;
+    --gain:#1F7A4D;
+    --loss:#B23A2E;
+    --line:#E6CDAE;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Public Sans',system-ui,sans-serif;
+    line-height:1.55;
+  }
+  .serif{font-family:'Newsreader',serif;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 clamp(16px,4vw,40px);}
+
+  .topbar{padding:16px 0;}
+  .backlink{
+    display:inline-flex;align-items:center;gap:6px;text-decoration:none;
+    color:var(--navy);font-weight:600;font-size:0.85rem;
+  }
+
+  .masthead{
+    border-top:3px solid var(--ink);
+    border-bottom:3px solid var(--ink);
+    padding:22px 0 16px;
+    margin-bottom:6px;
+  }
+  .masthead h1{
+    font-size:clamp(2rem,5vw,3.2rem);
+    margin:0;
+    text-align:center;
+    letter-spacing:-0.01em;
+  }
+  .masthead .tagline{
+    text-align:center;
+    font-style:italic;
+    color:var(--ink-soft);
+    margin:6px 0 0;
+    font-size:clamp(0.9rem,1.2vw,1.02rem);
+  }
+  .dateline{
+    display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;
+    font-family:'IBM Plex Mono',monospace;font-size:0.72rem;color:var(--ink-soft);
+    border-bottom:1px solid var(--line);
+    padding:8px 0 10px;margin-bottom:24px;
+    text-transform:uppercase;letter-spacing:0.04em;
+  }
+
+  /* API key setup */
+  .keybox{
+    background:var(--card);border:1.5px solid var(--line);border-radius:var(--radius);
+    padding:20px 22px;margin-bottom:26px;
+  }
+  .keybox h2{font-size:1.15rem;margin:0 0 6px;}
+  .keybox p{color:var(--ink-soft);font-size:0.9rem;margin:0 0 14px;}
+  .keyrow{display:flex;flex-wrap:wrap;gap:10px;}
+  .keyrow input{
+    flex:1 1 260px;padding:11px 13px;border-radius:9px;border:2px solid var(--line);
+    font-family:'IBM Plex Mono',monospace;font-size:0.9rem;background:#fff;color:var(--ink);
+  }
+  button.btn{
+    font-family:'Public Sans',sans-serif;font-weight:700;border:none;border-radius:9px;
+    padding:11px 20px;cursor:pointer;font-size:0.92rem;
+  }
+  .btn-primary{background:var(--navy);color:#fff;}
+  .btn-primary:hover{background:var(--navy-2);}
+  .btn-primary:disabled{background:#a9a49b;cursor:not-allowed;}
+  .btn-secondary{background:#fff;border:2px solid var(--line);color:var(--ink);}
+  .btn-secondary:hover{border-color:var(--navy);}
+  .btn-text{background:none;border:none;color:var(--navy);font-weight:600;text-decoration:underline;cursor:pointer;padding:0;}
+  .btn-text:hover{color:var(--navy-2);}
+  .keybox .note{font-size:0.78rem;color:var(--ink-soft);margin-top:10px;}
+  .keybox a{color:var(--navy);}
+
+  /* ticker strip */
+  .ticker{
+    display:flex;gap:14px;flex-wrap:wrap;
+    padding:12px 16px;background:var(--navy);border-radius:10px;margin-bottom:26px;
+  }
+  .ticker .chip{
+    color:#fff;font-family:'IBM Plex Mono',monospace;font-size:0.85rem;
+    display:flex;gap:8px;align-items:baseline;
+  }
+  .ticker .chip .sym{font-weight:700;color:#F7E1CC;}
+  .ticker .chip .up{color:#7CD3A0;}
+  .ticker .chip .down{color:#F0958A;}
+
+  .toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:20px;}
+  .toolbar .updated{font-family:'IBM Plex Mono',monospace;font-size:0.76rem;color:var(--ink-soft);}
+
+  /* index table */
+  .table-wrap{
+    background:var(--card);border:1.5px solid var(--line);border-radius:var(--radius);
+    overflow-x:auto;margin-bottom:30px;
+  }
+  table.idx-table{width:100%;border-collapse:collapse;min-width:640px;}
+  .idx-table thead th{
+    text-align:left;font-family:'IBM Plex Mono',monospace;font-size:0.68rem;
+    text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-soft);
+    padding:14px 16px;border-bottom:2px solid var(--ink);
+  }
+  .idx-table thead th.num{text-align:right;}
+  .idx-table tbody tr{border-bottom:1px solid var(--line);}
+  .idx-table tbody tr:last-child{border-bottom:none;}
+  .idx-table td{padding:16px;vertical-align:top;}
+  .idx-table td.num{text-align:right;}
+
+  .idx-name .serif{font-size:1.1rem;}
+  .idx-sub{font-size:0.75rem;color:var(--ink-soft);margin-top:2px;}
+  .symtag{font-size:0.68rem;color:var(--ink-soft);font-weight:400;}
+
+  .price{font-size:1.15rem;font-weight:700;}
+  .change{font-size:0.85rem;font-weight:600;margin-top:2px;}
+  .change.up{color:var(--gain);}
+  .change.down{color:var(--loss);}
+
+  .gauge{
+    position:relative;height:8px;width:120px;border-radius:999px;background:var(--paper-2);
+    margin-top:6px;overflow:hidden;border:1px solid var(--line);margin-left:auto;
+  }
+  .gauge-fill{
+    position:absolute;left:0;top:0;bottom:0;border-radius:999px;
+    background:linear-gradient(90deg,var(--gold),var(--navy));
+  }
+  .gauge-peak-marker{
+    position:absolute;right:0;top:-3px;bottom:-3px;width:2px;background:var(--ink);
+  }
+  .drawdown{font-size:1rem;font-weight:700;}
+  .drawdown.at-peak{color:var(--gain);}
+  .drawdown.below-peak{color:var(--loss);}
+
+  .idx-status{font-size:0.85rem;color:var(--ink-soft);padding:16px;}
+  .idx-status.error{color:var(--loss);}
+
+  .coverage-cell{max-width:180px;}
+  .coverage-note{font-size:0.7rem;color:var(--ink-soft);font-style:italic;}
+
+  .section-title{font-size:1.4rem;margin:8px 0 14px;}
+
+  .mood-box{
+    background:var(--navy);color:#fff;border-radius:var(--radius);
+    padding:22px 24px;margin-bottom:30px;
+  }
+  .mood-box h2{color:#fff;font-size:1.35rem;margin:0 0 6px;}
+  .mood-asof{font-family:'IBM Plex Mono',monospace;font-size:0.72rem;color:#C9B896;margin:0 0 14px;}
+  .mood-overall{font-style:italic;font-size:1.1rem;color:#F7E1CC;margin:0 0 16px;line-height:1.5;}
+  .mood-list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:12px;}
+  .mood-list li{border-top:1px solid rgba(255,255,255,0.15);padding-top:12px;}
+  .mood-company{font-family:'Newsreader',serif;font-weight:600;color:#fff;}
+  .mood-note{color:#E4D8C7;font-size:0.92rem;}
+
+  .disclaimer{
+    font-size:0.78rem;color:var(--ink-soft);line-height:1.6;
+    border-top:1px solid var(--line);padding:20px 0 40px;
+  }
+  .disclaimer strong{color:var(--ink);}
+</style>
+</head>
+<body>
+<div class="wrap topbar">
+  <a class="backlink" href="../index.html">← Utility Directory</a>
+</div>
+
+<div class="wrap">
+  <div class="masthead">
+    <h1 class="serif">PeakWatch</h1>
+    <p class="tagline">How far is the market from its peak, right now?</p>
+  </div>
+  <div class="dateline">
+    <span>S&amp;P 500 · Nasdaq 100 · MSCI World</span>
+    <span>Data via Twelve Data</span>
+  </div>
+
+  <div id="root"></div>
+</div>
+
+<script>
+const { useState, useCallback } = React;
+const h = React.createElement;
+
+const SYMBOLS = [
+  { key: "sp500", symbol: "SPY", label: "S&P 500", sub: "via SPDR S&P 500 ETF Trust (SPY)", proxy: true },
+  { key: "ndx", symbol: "QQQ", label: "Nasdaq 100", sub: "via Invesco QQQ Trust ETF (QQQ)", proxy: true },
+  { key: "msci", symbol: "URTH", label: "MSCI World", sub: "via iShares MSCI World ETF (URTH) — true index data is commercially licensed", proxy: true }
+];
+
+const MAG7 = [
+  { key: "aapl", symbol: "AAPL", company: "Apple" },
+  { key: "msft", symbol: "MSFT", company: "Microsoft" },
+  { key: "googl", symbol: "GOOGL", company: "Alphabet (Google)" },
+  { key: "amzn", symbol: "AMZN", company: "Amazon" },
+  { key: "nvda", symbol: "NVDA", company: "Nvidia" },
+  { key: "meta", symbol: "META", company: "Meta Platforms" },
+  { key: "tsla", symbol: "TSLA", company: "Tesla" }
+];
+
+// Nvidia is deliberately excluded here — it's already covered in the Magnificent 7 table above.
+const SEMI = [
+  { key: "amd", symbol: "AMD", company: "AMD" },
+  { key: "avgo", symbol: "AVGO", company: "Broadcom" },
+  { key: "intc", symbol: "INTC", company: "Intel" },
+  { key: "qcom", symbol: "QCOM", company: "Qualcomm" },
+  { key: "txn", symbol: "TXN", company: "Texas Instruments" },
+  { key: "mu", symbol: "MU", company: "Micron" },
+  { key: "sndk", symbol: "SNDK", company: "SanDisk" }
+];
+
+// Researched and written by Claude via live web search on July 25, 2026 — this is a point-in-time
+// snapshot, not a live feed. It's embedded as static text rather than regenerated in-browser because
+// a live Claude API call from a self-hosted static page (outside claude.ai) generally can't authenticate,
+// so it would silently fail after download. Re-ask Claude to refresh this if you want a later snapshot.
+const DRAWDOWN_COMMENTARY = {
+  asOf: "July 25, 2026",
+  overall: "The AI trade the Magnificent Seven built their premiums on is now the thing dragging them down — every member of the group is still sitting in double-digit territory below its 52-week high, undone less by weak results than by spending plans investors have stopped wanting to underwrite.",
+  notes: {
+    AAPL: "The lone bright spot of the group — up sharply this year largely because it has mostly sat out the AI capital-spending arms race, and for once the market is rewarding restraint instead of punishing it for falling behind.",
+    MSFT: "The group's worst performer, weighed down by a slowing software business and mounting doubt that its enormous AI data-center spending will earn back its cost anytime soon.",
+    GOOGL: "Beat on both revenue and profit and still sold off hard, after raising its 2026 capex forecast toward the $200 billion mark — proof that strong earnings alone no longer satisfy a market fixated on spending discipline.",
+    AMZN: "Caught in the same capex crossfire as Alphabet and Tesla, with free cash flow squeezed hard by its own AI infrastructure build-out even as core cloud growth continues to hold up.",
+    NVDA: "Comparatively resilient, but lately overshadowed as investor attention drifts toward the memory-chip makers supplying the very data centers Nvidia's customers are racing to build.",
+    META: "Treading water while the market waits nervously for its next earnings report to see whether its AI infrastructure spending will trigger the same reaction that just hit Alphabet and Tesla.",
+    TSLA: "Hit hardest of all, after swinging to negative free cash flow and confirming a sharply higher 2026 capital-spending plan for robotics and AI infrastructure — with execution details still thin on the ground."
+  }
+};
+
+// Researched by Claude via live web search on July 27, 2026 — same static-snapshot approach as the
+// drawdown commentary above, for the same reason: these figures move daily and differ by data
+// provider (trailing vs. forward P/E, differing growth-rate assumptions for PEG), so presenting them
+// as a precisely "live" feed would overstate their precision. P/E is trailing, from a single coherent
+// source (Yahoo Finance data via a July 27, 2026 snapshot) for internal consistency across all seven.
+// PEG and P/B are rounded estimates cross-referenced across multiple sources, not exact figures.
+// ROIC is from GuruFocus's Q1 2026 (quarter ended Mar 2026) figures for MSFT/GOOGL/AMZN/META/TSLA,
+// for internal consistency across those five; AAPL and NVDA are from separate sources (financecharts.com
+// and fffinstill respectively) since GuruFocus figures for those two weren't available in this search.
+// FCF and Earnings Growth are a genuine mix of actual-reported and analyst-estimate figures, since
+// Microsoft and Meta report their latest quarter today (Jul 29) and Apple and Amazon tomorrow (Jul 30) —
+// each is labeled so you can tell which is which. Tesla's figures below reflect its Q2 2026 report,
+// released Jul 28 — the freshest data point in this set.
+const FUNDAMENTALS = {
+  asOf: "July 27, 2026",
+  data: {
+    AAPL: { pe: 33.0, peHistory: "Roughly in line with its own 5-year average — the rally hasn't stretched its multiple much, since Apple sat out the AI capex spree.", peg: "~2.0", pb: "~45x", roic: "49.7%", fcf: "$129B+ TTM", earningsGrowth: "Reports Jul 30" },
+    MSFT: { pe: 25.3, peHistory: "Below its own recent (post-2023) average, which had often run in the low-30s — the sell-off has pulled its multiple down relative to its own history.", peg: "~1.8", pb: "~10x", roic: "20.9%", fcf: "~$25B est. (FY26, down from $58.7B)", earningsGrowth: "Reports Jul 29" },
+    GOOGL: { pe: 28.6, peHistory: "Above its own historical norm — Alphabet has usually traded at a discount to Mag 7 peers, often in the low-to-mid 20s, so this is a real re-rating upward.", peg: "~1.0–1.3", pb: "~8x", roic: "27.8%", fcf: "–$5.9B (Q2, negative — first time ever)", earningsGrowth: "Cloud +82% YoY; beat" },
+    AMZN: { pe: 29.7, peHistory: "Actually low relative to its own long-run history — Amazon has often traded far higher (50x+) when it was still suppressing earnings to reinvest; today's multiple reflects genuine profit maturity.", peg: "~2.2", pb: "~7–8x", roic: "11.2%", fcf: "Pressured (est.)", earningsGrowth: "Reports Jul 30" },
+    NVDA: { pe: 37.9, peHistory: "Toward the low end of its own 2–3 year AI-era range — earnings have grown even faster than the stock price.", peg: "<1.0", pb: "~40x+", roic: "61.8%", fcf: "$96.6B (FY26)", earningsGrowth: "+66.7% YoY net income" },
+    META: { pe: 27.8, peHistory: "Roughly in line with its post-2023 recovery-era average — not dramatically stretched, though this was measured just before its July 29 earnings report.", peg: "~0.6–1.3", pb: "~8–9x", roic: "32.4%", fcf: "~$1.9B est. (−95.7% YoY)", earningsGrowth: "Reports Jul 29" },
+    TSLA: { pe: 377.8, peHistory: "Elevated even by Tesla's own unusually wide historical range (which has swung from under 50x to 1000x+) — P/E is close to meaningless here given how earnings-thin the company currently is.", peg: "n/m", pb: "~15–16x", roic: "2.9%", fcf: "Negative (Q2)", earningsGrowth: "EPS −18% YoY (Q2, reported Jul 28)" }
+  }
+};
+
+async function fetchJsonResilient(url){
+  let res;
+  try{
+    res = await fetch(url);
+  }catch(networkErr){
+    // fetch() itself threw — this is the actual CORS/network-failure case, worth a proxy retry
+    try{
+      const proxied = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
+      const res2 = await fetch(proxied);
+      if(!res2.ok) throw new Error("HTTP " + res2.status);
+      return await res2.json();
+    }catch(proxyErr){
+      throw new Error(
+        "Couldn't reach the provider directly (likely a network or CORS block: " + networkErr.message + "), " +
+        "and the fallback proxy also failed (" + proxyErr.message + ")."
+      );
+    }
+  }
+  // We got a real response — CORS isn't the issue. Surface the API's own error, don't waste time on a proxy retry.
+  if(!res.ok){
+    const body = await res.text().catch(() => "");
+    throw new Error("HTTP " + res.status + (body ? " — " + body.slice(0, 220) : ""));
+  }
+  return await res.json();
+}
+
+// One call gets everything we need: current price, today's change, and the 52-week high —
+// Twelve Data's /quote response includes a fifty_two_week.high field directly, so there's no
+// need to separately fetch and scan a historical series ourselves.
+async function fetchQuoteWithHigh(symbol, apiKey){
+  const url = "https://api.twelvedata.com/quote?symbol=" + encodeURIComponent(symbol) + "&apikey=" + encodeURIComponent(apiKey);
+  let data;
+  try{
+    data = await fetchJsonResilient(url);
+  }catch(e){
+    if(/HTTP 401/.test(e.message) || /apikey/i.test(e.message)){
+      throw new Error("This API key isn't valid for Twelve Data — note it needs to be a Twelve Data key (twelvedata.com/pricing), not a key from a different provider. Click \"Change API key\" above to re-enter it.");
+    }
+    throw e;
+  }
+  if(data && data.status === "error"){
+    throw new Error(data.message || ("Twelve Data returned an error for " + symbol + "."));
+  }
+  if(!data || data.close === undefined){
+    throw new Error("No quote returned for " + symbol + ".");
+  }
+  const price = parseFloat(data.close);
+  const changePct = parseFloat(data.percent_change);
+  const athValue = data.fifty_two_week ? parseFloat(data.fifty_two_week.high) : NaN;
+  if(isNaN(price) || isNaN(athValue)){
+    throw new Error("Couldn't parse price/52-week-high for " + symbol + " from the response.");
+  }
+  return { price, changePct: isNaN(changePct) ? 0 : changePct, athValue };
+}
+
+function IndexRow({ def, state }){
+  if(state.loading){
+    return h("tr", null,
+      h("td", { className: "idx-name" },
+        h("div", { className: "serif" }, def.label),
+        h("div", { className: "idx-sub" }, def.sub)
+      ),
+      h("td", { colSpan: 3, className: "idx-status" }, "Loading…")
+    );
+  }
+  if(state.error){
+    return h("tr", null,
+      h("td", { className: "idx-name" },
+        h("div", { className: "serif" }, def.label),
+        h("div", { className: "idx-sub" }, def.sub)
+      ),
+      h("td", { colSpan: 3, className: "idx-status error" }, state.error)
+    );
+  }
+  if(!state.quote) return null;
+
+  const { price, changePct, athValue } = state.quote;
+  const isUp = changePct >= 0;
+  const drawdownPct = ((price - athValue) / athValue) * 100;
+  const atPeak = drawdownPct >= -0.05; // essentially at 52-week high
+  const fillPct = Math.max(0, Math.min(100, (price / athValue) * 100));
+
+  return h("tr", null,
+    h("td", { className: "idx-name" },
+      h("div", { className: "serif" }, def.label, " ", h("span", { className: "mono symtag" }, def.symbol)),
+      h("div", { className: "idx-sub" }, def.sub)
+    ),
+    h("td", { className: "num" },
+      h("div", { className: "mono price" }, price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })),
+      h("div", { className: "mono change " + (isUp ? "up" : "down") }, (isUp ? "▲ " : "▼ ") + Math.abs(changePct).toFixed(2) + "%")
+    ),
+    h("td", { className: "num" },
+      h("div", { className: "mono" }, athValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+    ),
+    h("td", { className: "num" },
+      h("div", { className: "mono drawdown " + (atPeak ? "at-peak" : "below-peak") },
+        atPeak ? "At peak" : drawdownPct.toFixed(2) + "%"
+      ),
+      h("div", { className: "gauge" },
+        h("div", { className: "gauge-fill", style: { width: fillPct + "%" } }),
+        h("div", { className: "gauge-peak-marker" })
+      )
+    )
+  );
+}
+
+function StockRow({ def, state }){
+  const fundamentals = FUNDAMENTALS.data[def.symbol];
+  if(state.loading){
+    return h("tr", null,
+      h("td", { className: "idx-name" }, h("div", { className: "serif" }, def.company)),
+      h("td", { className: "mono" }, def.symbol),
+      h("td", { colSpan: 9, className: "idx-status" }, "Loading…")
+    );
+  }
+  if(state.error){
+    return h("tr", null,
+      h("td", { className: "idx-name" }, h("div", { className: "serif" }, def.company)),
+      h("td", { className: "mono" }, def.symbol),
+      h("td", { colSpan: 9, className: "idx-status error" }, state.error)
+    );
+  }
+  if(!state.quote) return null;
+
+  const { price, athValue } = state.quote;
+  const drawdownPct = ((price - athValue) / athValue) * 100;
+  const atPeak = drawdownPct >= -0.05;
+
+  return h("tr", null,
+    h("td", { className: "idx-name" }, h("div", { className: "serif" }, def.company)),
+    h("td", { className: "mono" }, def.symbol),
+    h("td", { className: "num mono" }, price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })),
+    h("td", { className: "num mono" }, athValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })),
+    h("td", { className: "num" },
+      h("div", { className: "mono drawdown " + (atPeak ? "at-peak" : "below-peak") },
+        atPeak ? "At peak" : drawdownPct.toFixed(2) + "%"
+      )
+    ),
+    h("td", { className: "num mono" }, fundamentals ? fundamentals.pe.toFixed(1) : "—"),
+    h("td", { className: "num mono" }, fundamentals ? fundamentals.peg : "—"),
+    h("td", { className: "num mono" }, fundamentals ? fundamentals.pb : "—"),
+    h("td", { className: "num mono" }, fundamentals ? fundamentals.roic : "—"),
+    h("td", { className: "mono", style: { whiteSpace: "normal", minWidth: "160px" } }, fundamentals ? fundamentals.fcf : "—"),
+    h("td", { style: { whiteSpace: "normal", minWidth: "150px" } }, fundamentals ? fundamentals.earningsGrowth : "—")
+  );
+}
+
+function App(){
+  const [apiKey, setApiKey] = useState("");
+  const [keyInput, setKeyInput] = useState("");
+  const [data, setData] = useState({}); // key -> { loading, error, quote }
+  const [magData, setMagData] = useState({});
+  const [semiData, setSemiData] = useState({});
+  const [lastRefreshed, setLastRefreshed] = useState(null);
+  const [loadingAll, setLoadingAll] = useState(false);
+  const [loadProgress, setLoadProgress] = useState(null); // { done, total }
+
+  // Twelve Data's free tier allows only 8 credits/minute, and each quote call costs 1 credit.
+  // Firing all symbols in parallel blows straight through that, so we load them one at a
+  // time with a comfortable gap instead — slower, but it won't get rate-limited.
+  const THROTTLE_MS = 8500;
+  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+  const loadAll = useCallback(async (key) => {
+    setLoadingAll(true);
+    const initial = {};
+    SYMBOLS.forEach(s => { initial[s.key] = { loading: true, error: null, quote: null }; });
+    setData(initial);
+    const initialMag = {};
+    MAG7.forEach(s => { initialMag[s.key] = { loading: true, error: null, quote: null }; });
+    setMagData(initialMag);
+    const initialSemi = {};
+    SEMI.forEach(s => { initialSemi[s.key] = { loading: true, error: null, quote: null }; });
+    setSemiData(initialSemi);
+
+    const tasks = [
+      ...SYMBOLS.map(s => ({ kind: "index", def: s })),
+      ...MAG7.map(s => ({ kind: "mag", def: s })),
+      ...SEMI.map(s => ({ kind: "semi", def: s }))
+    ];
+    setLoadProgress({ done: 0, total: tasks.length });
+
+    for(let i = 0; i < tasks.length; i++){
+      const { kind, def } = tasks[i];
+      const setForKind = kind === "index" ? setData : kind === "mag" ? setMagData : setSemiData;
+      try{
+        const quote = await fetchQuoteWithHigh(def.symbol, key);
+        setForKind(prev => ({ ...prev, [def.key]: { loading: false, error: null, quote } }));
+      }catch(e){
+        setForKind(prev => ({ ...prev, [def.key]: { loading: false, error: e.message, quote: null } }));
+      }
+      setLoadProgress({ done: i + 1, total: tasks.length });
+      if(i < tasks.length - 1) await delay(THROTTLE_MS);
+    }
+
+    setLastRefreshed(new Date());
+    setLoadProgress(null);
+    setLoadingAll(false);
+  }, []);
+
+  const handleSaveKey = () => {
+    const trimmed = keyInput.trim();
+    if(!trimmed) return;
+    setApiKey(trimmed);
+    loadAll(trimmed);
+  };
+
+  const handleChangeKey = () => {
+    setApiKey("");
+    setKeyInput("");
+    setData({});
+    setMagData({});
+  };
+
+  const anyLoaded = Object.values(data).some(d => d && d.quote);
+
+  return h("div", null,
+    !apiKey ? h("div", { className: "keybox" },
+      h("h2", { className: "serif" }, "Connect a data source"),
+      h("p", null, "PeakWatch runs entirely in your browser — it needs your own free Twelve Data API key to fetch live prices. Sign up takes about a minute, no credit card needed for the free tier."),
+      h("div", { className: "keyrow" },
+        h("input", {
+          type: "text", placeholder: "Paste your API key here",
+          value: keyInput, onChange: e => setKeyInput(e.target.value)
+        }),
+        h("button", { className: "btn btn-primary", onClick: handleSaveKey, disabled: !keyInput.trim() }, "Connect")
+      ),
+      h("p", { className: "note" },
+        "Don't have a key? Get one free at ",
+        h("a", { href: "https://twelvedata.com/pricing", target: "_blank", rel: "noopener" }, "twelvedata.com"),
+        ". Your key is kept in this browser tab's memory only — it's never saved to disk or sent anywhere except directly to Twelve Data, and you'll need to re-enter it next time you open this page."
+      )
+    ) : h("div", null,
+      anyLoaded ? h("div", { className: "ticker" },
+        SYMBOLS.map(s => {
+          const d = data[s.key];
+          if(!d || !d.quote) return null;
+          const changePct = d.quote.changePct;
+          const up = changePct >= 0;
+          return h("div", { className: "chip", key: s.key },
+            h("span", { className: "sym" }, s.symbol),
+            h("span", null, d.quote.price.toLocaleString(undefined, { maximumFractionDigits: 2 })),
+            h("span", { className: up ? "up" : "down" }, (up ? "▲" : "▼") + Math.abs(changePct).toFixed(2) + "%")
+          );
+        })
+      ) : null,
+
+      h("div", { className: "toolbar" },
+        h("button", { className: "btn btn-secondary", onClick: () => loadAll(apiKey), disabled: loadingAll },
+          loadingAll && loadProgress ? "Loading " + loadProgress.done + " of " + loadProgress.total + "…" : "↻ Refresh"
+        ),
+        h("button", { className: "btn-text", onClick: handleChangeKey }, "Change API key"),
+        lastRefreshed ? h("span", { className: "updated" }, "Last updated ", lastRefreshed.toLocaleTimeString()) : null,
+        loadingAll ? h("span", { className: "updated" }, "(throttled to stay under the free-tier rate limit — takes a couple of minutes)") : null
+      ),
+
+      h("div", { className: "table-wrap" },
+        h("table", { className: "idx-table" },
+          h("thead", null,
+            h("tr", null,
+              h("th", null, "Index"),
+              h("th", { className: "num" }, "Price / Today"),
+              h("th", { className: "num" }, "52-Week High"),
+              h("th", { className: "num" }, "vs. 52-Wk High")
+            )
+          ),
+          h("tbody", null,
+            SYMBOLS.map(s => h(IndexRow, { key: s.key, def: s, state: data[s.key] || { loading: true } }))
+          )
+        )
+      ),
+
+      h("h2", { className: "serif section-title" }, "Magnificent 7: Drawdown From 52-Week High"),
+      h("div", { className: "table-wrap" },
+        h("table", { className: "idx-table" },
+          h("thead", null,
+            h("tr", null,
+              h("th", null, "Company"),
+              h("th", null, "Ticker"),
+              h("th", { className: "num" }, "Close"),
+              h("th", { className: "num" }, "52-Week High"),
+              h("th", { className: "num" }, "Drawdown"),
+              h("th", { className: "num" }, "P/E"),
+              h("th", { className: "num" }, "PEG"),
+              h("th", { className: "num" }, "P/B"),
+              h("th", { className: "num" }, "ROIC"),
+              h("th", null, "Free Cash Flow"),
+              h("th", null, "Earnings Growth")
+            )
+          ),
+          h("tbody", null,
+            MAG7.map(s => h(StockRow, { key: s.key, def: s, state: magData[s.key] || { loading: true } }))
+          )
+        )
+      ),
+
+      h("div", { className: "mood-box" },
+        h("h2", { className: "serif" }, "📐 P/E vs. Each Company's Own History"),
+        h("p", { className: "mood-asof" }, "Researched and written by Claude via live web search — as of ", FUNDAMENTALS.asOf, ". A point-in-time snapshot, not a live feed."),
+        h("p", { style: { color: "var(--ink-soft)", fontSize: "0.88rem", marginBottom: "16px" } },
+          "A high P/E alone doesn't say much — what matters more is how it compares to the company's own typical range. A stock that's dropped can still be expensive if its P/E remains well above its historical norm, and a stock trading at a high absolute P/E can still be reasonably priced if that's actually low for its own history."
+        ),
+        h("ul", { className: "mood-list" },
+          MAG7.map(s => {
+            const f = FUNDAMENTALS.data[s.symbol];
+            return h("li", { key: s.key },
+              h("span", { className: "mood-company" }, s.company, " "),
+              h("span", { className: "mood-note" }, f ? f.peHistory : "No data available.")
+            );
+          })
+        )
+      ),
+
+      h("div", { className: "mood-box" },
+        h("h2", { className: "serif" }, "🗞️ What's Behind the Pullback"),
+        h("p", { className: "mood-asof" }, "Researched and written by Claude via live web search — as of ", DRAWDOWN_COMMENTARY.asOf, ". A point-in-time snapshot, not a live feed."),
+        h("p", { className: "mood-overall serif" }, DRAWDOWN_COMMENTARY.overall),
+        h("ul", { className: "mood-list" },
+          MAG7.map(s => h("li", { key: s.key },
+            h("span", { className: "mood-company" }, s.company, " "),
+            h("span", { className: "mood-note" }, DRAWDOWN_COMMENTARY.notes[s.symbol] || "No commentary available.")
+          ))
+        )
+      ),
+
+      h("h2", { className: "serif section-title" }, "US Semiconductor Stocks: Drawdown From 52-Week High"),
+      h("p", { style: { color: "var(--ink-soft)", fontSize: "0.88rem", marginTop: "-8px", marginBottom: "14px" } }, "Nvidia is covered in the Magnificent 7 table above, so it isn't repeated here."),
+      h("div", { className: "table-wrap" },
+        h("table", { className: "idx-table" },
+          h("thead", null,
+            h("tr", null,
+              h("th", null, "Company"),
+              h("th", null, "Ticker"),
+              h("th", { className: "num" }, "Close"),
+              h("th", { className: "num" }, "52-Week High"),
+              h("th", { className: "num" }, "Drawdown"),
+              h("th", { className: "num" }, "P/E"),
+              h("th", { className: "num" }, "PEG"),
+              h("th", { className: "num" }, "P/B"),
+              h("th", { className: "num" }, "ROIC"),
+              h("th", null, "Free Cash Flow"),
+              h("th", null, "Earnings Growth")
+            )
+          ),
+          h("tbody", null,
+            SEMI.map(s => h(StockRow, { key: s.key, def: s, state: semiData[s.key] || { loading: true } }))
+          )
+        )
+      )
+    ),
+
+    h("div", { className: "disclaimer" },
+      h("strong", null, "About this data: "),
+      "Prices come from Twelve Data's free tier and may be delayed rather than real-time tick data, and are fetched one symbol at a time with a short pause between each — the free tier allows only 8 requests per minute, and this tool now tracks 17 symbols per refresh (3 indexes, 7 Magnificent 7, 7 semiconductor stocks), so a full load takes a couple of minutes. \"52-Week High\" is Twelve Data's own computed trailing-52-week high for the symbol, returned directly by their quote endpoint. All three indexes are shown via their most widely-tracked ETF (SPY for the S&P 500, QQQ for the Nasdaq 100, URTH for MSCI World) rather than the raw index value — a deliberate choice for consistency and free-tier reliability, since raw index symbols are inconsistently available (or paywalled) across data providers, while these ETFs are freely quotable and track their index closely, if not identically (small tracking difference from fees). P/E, PEG, P/B, ROIC, Free Cash Flow, and Earnings Growth for the Magnificent 7 are all a static, dated snapshot researched by Claude via web search — like the drawdown commentary below, not a live feed. We looked into live options for these specifically (Twelve Data's fundamentals endpoint, SEC EDGAR, Macrotrends, StockAnalysis.com) and none offer free, direct browser access: SEC EDGAR explicitly disables CORS for cross-origin requests, Twelve Data's fundamentals cost more per call than the free tier's entire per-minute budget, and the finance sites only expose data through paid third-party scraping services. P/E and ROIC are each drawn from one internally-consistent source across all seven where possible; PEG, P/B, FCF, and Earnings Growth are cross-referenced across several sources and rounded (\"n/m\" = not meaningful, shown for Tesla's PEG since shrinking earnings break the calculation). Microsoft and Meta report their latest quarter on Jul 29, and Apple and Amazon on Jul 30 — as of this snapshot's research date, those four show \"Reports [date]\" rather than an actual figure, since estimates would be stale within days regardless. The semiconductor table shares this same layout for consistency, but its P/E, PEG, P/B, ROIC, FCF, and Earnings Growth columns show \"—\" — that fundamentals research hasn't been done for these seven yet; ask and it can be added the same way. None of this updates automatically and none of it should be read as current data or investment advice."
+    )
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(h(App));
+</script>
+</body>
+</html>

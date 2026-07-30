@@ -1,0 +1,1659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>NameWeaver — Blend Names or Match by Meaning</title>
+<meta name="description" content="Blend two or more names into a portmanteau, or find a baby name that matches the meaning of a sibling's or relative's name — including a Chinese character, pinyin, and stroke-count deep-dive." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Karla:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+
+<style>
+  :root{
+    --paper:#FBF7EF;
+    --paper-2:#F2EAD9;
+    --card:#FFFDF8;
+    --ink:#2B2318;
+    --ink-soft:#655A48;
+    --pine:#2F5D50;
+    --pine-dark:#1F433A;
+    --gold:#C48A2E;
+    --gold-soft:#EAD6A8;
+    --rust:#B5533E;
+    --line:#E6DCC3;
+    --radius:16px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Karla',system-ui,sans-serif;
+    line-height:1.6;
+  }
+  .display{font-family:'Fraunces',serif;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  a{color:var(--pine-dark);}
+  h1,h2,h3{font-family:'Fraunces',serif;font-weight:600;color:var(--ink);margin:0 0 0.5em;}
+  .wrap{max-width:980px;margin:0 auto;padding:0 clamp(18px,4vw,40px);}
+  .backlink{
+    display:inline-flex;align-items:center;gap:6px;
+    text-decoration:none;color:var(--pine-dark);font-weight:600;font-size:0.85rem;
+  }
+  .topbar{padding:18px 0;}
+
+  /* HERO */
+  .hero{padding:20px 0 44px;}
+  .hero h1{font-size:clamp(2rem,5vw,3.1rem);line-height:1.08;max-width:14ch;}
+  .hero .lede{max-width:58ch;color:var(--ink-soft);font-size:clamp(1rem,1.3vw,1.12rem);margin-bottom:10px;}
+
+  .merge-demo{
+    display:flex;align-items:center;justify-content:center;
+    position:relative;
+    height:150px;
+    margin:34px 0 6px;
+    user-select:none;
+  }
+  .merge-circle{
+    width:150px;height:150px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Fraunces',serif;font-weight:600;font-size:1.15rem;
+    color:#fff;
+  }
+  .merge-circle.left{background:var(--pine);margin-right:-46px;}
+  .merge-circle.right{background:var(--gold);margin-left:-46px;color:var(--ink);}
+  .merge-result{
+    position:absolute;
+    background:var(--card);
+    border:2px solid var(--ink);
+    border-radius:999px;
+    padding:8px 18px;
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:600;
+    font-size:0.95rem;
+    box-shadow:0 6px 14px rgba(43,35,24,0.15);
+  }
+  .merge-caption{
+    text-align:center;font-size:0.8rem;color:var(--ink-soft);
+    font-family:'IBM Plex Mono',monospace;
+  }
+
+  /* TOC */
+  .toc-card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:22px 24px;
+    margin:30px 0 46px;
+  }
+  .toc-card .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;
+    color:var(--pine-dark);margin-bottom:10px;
+  }
+  .toc-card ol{
+    margin:0;padding-left:0;
+    list-style:none;
+    columns:2;
+    column-gap:28px;
+  }
+  @media (max-width:560px){ .toc-card ol{columns:1;} }
+  .toc-card li{
+    break-inside:avoid;
+    margin-bottom:9px;
+    padding-bottom:9px;
+    border-bottom:1px dashed var(--line);
+  }
+  .toc-card a{
+    text-decoration:none;
+    color:var(--ink);
+    font-weight:600;
+    font-size:0.95rem;
+    display:flex;gap:10px;
+  }
+  .toc-card a:hover{color:var(--pine-dark);}
+  .toc-card a .n{
+    font-family:'IBM Plex Mono',monospace;
+    color:var(--gold);
+    font-weight:600;
+    flex-shrink:0;
+  }
+
+  section{padding:38px 0;border-top:1px solid var(--line);}
+  section:first-of-type{border-top:none;}
+  section h2{font-size:clamp(1.4rem,2.6vw,1.9rem);}
+  #how-it-works h3, #how-to-use h3{
+    font-size:1.15rem;color:var(--pine-dark);
+    margin:28px 0 10px;padding-top:18px;border-top:1px dashed var(--line);
+  }
+  #how-it-works h3:first-of-type, #how-to-use h3:first-of-type{margin-top:16px;padding-top:0;border-top:none;}
+  section p{color:var(--ink-soft);max-width:72ch;}
+  section ul, section ol.plain{color:var(--ink-soft);max-width:72ch;padding-left:1.2em;}
+  section li{margin-bottom:8px;}
+  .lead-line{color:var(--ink);font-weight:600;}
+  .hero .eyebrow{
+    font-family:'IBM Plex Mono',monospace;font-size:0.78rem;letter-spacing:0.14em;
+    color:var(--pine-dark);font-weight:600;
+  }
+
+  /* USE CASES GRID */
+  .usecases{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(210px,1fr));
+    gap:14px;
+    margin-top:20px;
+  }
+  .usecase{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:16px;
+  }
+  .usecase .icon{font-size:1.5rem;display:block;margin-bottom:8px;}
+  .usecase h3{font-size:1rem;margin-bottom:4px;font-family:'Karla',sans-serif;font-weight:700;}
+  .usecase p{font-size:0.86rem;margin:0;color:var(--ink-soft);}
+
+  /* MISTAKES */
+  .mistakes{border-left:4px solid var(--rust);padding-left:18px;}
+
+  /* DISCOVERY ACCORDION */
+  .discovery details{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:14px 18px;
+    margin-bottom:10px;
+  }
+  .discovery summary{
+    cursor:pointer;
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:1.05rem;
+    display:flex;align-items:center;gap:10px;
+    list-style:none;
+  }
+  .discovery summary::-webkit-details-marker{display:none;}
+  .discovery summary::after{
+    content:"+";
+    margin-left:auto;
+    font-family:'IBM Plex Mono',monospace;
+    color:var(--pine-dark);
+    font-size:1.1rem;
+  }
+  .discovery details[open] summary::after{content:"–";}
+  .discovery .sub{margin-top:14px;}
+  .discovery .sub h4{
+    font-family:'Karla',sans-serif;font-weight:700;font-size:0.95rem;
+    margin:14px 0 4px;color:var(--pine-dark);
+  }
+  .discovery .sub h4:first-child{margin-top:0;}
+  .discovery .sub p{font-size:0.9rem;margin:0 0 4px;}
+
+  /* TOOL */
+  .tool-card{
+    background:var(--paper-2);
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:clamp(18px,3vw,30px);
+  }
+  .mode-tabs{
+    display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;
+  }
+  .mode-tab{
+    font-family:'Karla',sans-serif;font-weight:700;font-size:0.92rem;
+    padding:10px 18px;border-radius:999px;border:2px solid var(--line);
+    background:var(--card);color:var(--ink-soft);cursor:pointer;
+  }
+  .mode-tab.active{background:var(--pine);border-color:var(--pine);color:#fff;}
+
+  .meaning-input-row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
+  .meaning-input-row input[type=text]{
+    flex:1 1 220px;padding:12px 14px;border-radius:10px;border:2px solid var(--line);
+    font-family:'Karla',sans-serif;font-size:1rem;background:var(--card);color:var(--ink);
+  }
+  .example-links{margin-bottom:14px;font-size:0.85rem;color:var(--ink-soft);}
+  .example-links button{
+    background:none;border:none;color:var(--pine-dark);font-weight:700;cursor:pointer;
+    text-decoration:underline;font-family:'Karla',sans-serif;font-size:0.85rem;padding:0;margin-right:14px;
+  }
+
+  .info-box{
+    background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:14px 16px;margin-bottom:16px;font-size:0.9rem;
+  }
+  .info-box.warn{border-color:var(--gold);}
+
+  .theme-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+  .theme-chip{
+    padding:7px 13px;border-radius:999px;font-size:0.82rem;font-weight:600;
+    border:2px solid var(--line);background:var(--card);color:var(--ink-soft);cursor:pointer;
+  }
+  .theme-chip.on{background:var(--gold-soft);border-color:var(--gold);color:var(--ink);}
+
+  .char-cards{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px;}
+  .char-card{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:14px 16px;min-width:150px;text-align:center;
+  }
+  .char-card .glyph{font-family:'Fraunces',serif;font-size:2.2rem;line-height:1;margin-bottom:6px;}
+  .char-card .py{font-family:'IBM Plex Mono',monospace;font-size:0.85rem;color:var(--pine-dark);}
+  .char-card .meaning{font-size:0.85rem;color:var(--ink-soft);margin-top:4px;}
+  .char-card .strokes{font-family:'IBM Plex Mono',monospace;font-size:0.75rem;color:var(--gold);margin-top:4px;}
+  .char-card.missing{color:var(--ink-soft);border-style:dashed;}
+
+  .alt-group{margin-bottom:18px;}
+  .alt-group h4{font-size:0.95rem;margin:0 0 8px;font-family:'Karla',sans-serif;font-weight:700;}
+  .alt-chips{display:flex;flex-wrap:wrap;gap:8px;}
+  .alt-chip{
+    background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:8px 12px;font-size:0.85rem;text-align:center;
+  }
+  .alt-chip .g{font-family:'Fraunces',serif;font-size:1.2rem;}
+  .alt-chip .d{font-family:'IBM Plex Mono',monospace;font-size:0.68rem;color:var(--ink-soft);}
+
+  .field-row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;}
+  .name-field{
+    display:flex;align-items:center;gap:6px;
+    background:var(--card);
+    border:2px solid var(--line);
+    border-radius:10px;
+    padding:4px 6px 4px 12px;
+    flex:1 1 180px;
+  }
+  .name-field input{
+    border:none;outline:none;background:transparent;
+    font-family:'Karla',sans-serif;font-size:1rem;
+    padding:8px 0;flex:1;color:var(--ink);
+  }
+  .name-field .rm{
+    background:none;border:none;color:var(--ink-soft);
+    cursor:pointer;font-size:1.1rem;line-height:1;padding:6px;
+  }
+  .name-field .rm:hover{color:var(--rust);}
+  .add-name{
+    background:none;border:2px dashed var(--line);color:var(--pine-dark);
+    border-radius:10px;padding:10px 16px;font-weight:700;font-size:0.9rem;
+    cursor:pointer;font-family:'Karla',sans-serif;
+  }
+  .add-name:hover{border-color:var(--pine);}
+
+  .controls-grid{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:10px;margin-bottom:14px;
+  }
+  .ctl label{
+    display:block;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.06em;
+    color:var(--ink-soft);margin-bottom:5px;font-family:'IBM Plex Mono',monospace;
+  }
+  .ctl select, .ctl input[type=number], .ctl input[type=text]{
+    width:100%;padding:9px 10px;border-radius:8px;border:2px solid var(--line);
+    font-family:'Karla',sans-serif;font-size:0.92rem;background:var(--card);color:var(--ink);
+  }
+
+  .toggles{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+  .toggle{
+    display:flex;align-items:center;gap:8px;
+    background:var(--card);border:2px solid var(--line);border-radius:999px;
+    padding:8px 14px;font-size:0.85rem;cursor:pointer;user-select:none;
+  }
+  .toggle input{accent-color:var(--pine);}
+  .toggle.on{border-color:var(--pine);background:#EFF4EE;}
+
+  .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;}
+  button.btn{
+    font-family:'Karla',sans-serif;font-weight:700;border:none;border-radius:10px;
+    padding:12px 20px;cursor:pointer;font-size:0.95rem;
+  }
+  .btn-primary{background:var(--pine);color:#fff;}
+  .btn-primary:hover{background:var(--pine-dark);}
+  .btn-primary:disabled{background:#B9C4BE;cursor:not-allowed;}
+  .btn-secondary{background:var(--card);border:2px solid var(--line);color:var(--ink);}
+  .btn-secondary:hover{border-color:var(--gold);}
+  .btn-secondary:disabled{color:#b9b2a1;cursor:not-allowed;}
+  .btn-text{background:none;border:none;color:var(--pine-dark);font-weight:700;cursor:pointer;text-decoration:underline;padding:6px;font-family:'Karla',sans-serif;}
+
+  .tool-status{
+    margin-top:16px;font-size:0.88rem;color:var(--ink-soft);
+    background:var(--card);border:1px dashed var(--line);border-radius:10px;padding:12px 14px;
+  }
+  .tool-status.error{border-color:var(--rust);color:var(--rust);}
+
+  .results-grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+    gap:14px;margin-top:20px;
+  }
+  .tag{
+    position:relative;
+    background:var(--card);
+    border:1.5px solid var(--line);
+    border-radius:10px;
+    padding:18px 14px 14px;
+    text-align:center;
+  }
+  .tag .hole{
+    position:absolute;top:10px;left:10px;
+    width:10px;height:10px;border-radius:50%;
+    background:var(--paper-2);border:1.5px solid var(--line);
+  }
+  .tag .technique{
+    font-family:'IBM Plex Mono',monospace;font-size:0.62rem;letter-spacing:0.06em;
+    text-transform:uppercase;color:var(--gold);margin-bottom:6px;
+  }
+  .tag .name{
+    font-family:'Fraunces',serif;font-weight:600;font-size:1.15rem;
+    word-break:break-word;
+  }
+  .tag .copy{
+    margin-top:10px;background:none;border:1px solid var(--line);border-radius:8px;
+    padding:5px 10px;font-size:0.75rem;cursor:pointer;color:var(--ink-soft);
+    font-family:'Karla',sans-serif;
+  }
+  .tag .copy:hover{border-color:var(--pine);color:var(--pine-dark);}
+  .tag .copy.copied{background:var(--pine);color:#fff;border-color:var(--pine);}
+
+  footer{padding:34px 0 50px;font-size:0.8rem;color:var(--ink-soft);}
+</style>
+</head>
+<body>
+
+<div class="wrap topbar">
+  <a class="backlink" href="../index.html">← Utility Directory</a>
+</div>
+
+<div class="wrap hero">
+  <div class="eyebrow" style="margin-bottom:8px;">NAMEWEAVER</div>
+  <h1>Two names blended. Or one name's meaning, carried forward.</h1>
+  <p class="lede">NameWeaver is two name-creation tools in one: <strong>Blend Names</strong> merges two or more names or words into a portmanteau. <strong>Match by Meaning</strong> takes a single name — a sibling's, a relative's, one you love — and finds others that share its underlying meaning, with a dedicated deep-dive for Chinese characters.</p>
+  <div class="merge-demo">
+    <div class="merge-circle left">Brad</div>
+    <div class="merge-circle right">Angelina</div>
+    <div class="merge-result">Brangelina</div>
+  </div>
+  <p class="merge-caption">overlap blend — shared sound, fused at the seam</p>
+</div>
+
+<div class="wrap">
+  <nav class="toc-card" aria-label="Table of contents">
+    <div class="eyebrow">Contents</div>
+    <ol>
+      <li><a href="#what-is"><span class="n">01</span> What is NameWeaver?</span></a></li>
+      <li><a href="#how-it-works"><span class="n">02</span> How each tool works</span></a></li>
+      <li><a href="#how-to-use"><span class="n">03</span> How to use each tool</span></a></li>
+      <li><a href="#tool"><span class="n">04</span> Try the tools</span></a></li>
+      <li><a href="#why-ours"><span class="n">05</span> Why use ours</span></a></li>
+      <li><a href="#use-cases"><span class="n">06</span> Popular use cases</span></a></li>
+      <li><a href="#mistakes"><span class="n">07</span> Common mistakes</span></a></li>
+      <li><a href="#tips"><span class="n">08</span> Tips for memorable names</span></a></li>
+      <li><a href="#discovery"><span class="n">09</span> Explore related topics</span></a></li>
+    </ol>
+  </nav>
+</div>
+
+<div class="wrap">
+
+  <section id="what-is">
+    <h2>What is NameWeaver?</h2>
+    <p>NameWeaver is a small collection of tools for creating personal, meaningful names. It helps couples, moms and dads, and businesses arrive at a name quickly and creatively — either by <strong>blending</strong> two names together, or by <strong>matching</strong> a new name to the meaning of one that already matters to you.</p>
+    <p>Blended names aren't new — they've shaped pop culture, marriage traditions, and even global brands. Naming a child after the meaning of a grandparent's or sibling's name is older still. NameWeaver just makes both approaches fast to explore.</p>
+  </section>
+
+  <section id="how-it-works">
+    <h2>How each tool works</h2>
+
+    <h3>🔗 Blend Names</h3>
+    <p>This isn't just chopping two names in half and taping them together. It runs several blending methods at once instead of just one:</p>
+    <ul>
+      <li><span class="lead-line">Overlap blending.</span> Looks for a shared sound between the two names and merges them at that point — the way "Brad" and "Angelina" became "Brangelina."</li>
+      <li><span class="lead-line">Syllable swapping.</span> Takes the start of one name and the end of the other, then tries it both ways.</li>
+      <li><span class="lead-line">Full fusion.</span> Joins both names completely, keeping every letter — useful when you want a brand name or username that clearly contains both originals.</li>
+      <li><span class="lead-line">Sound smoothing.</span> Adjusts a letter here or there so the result is easier to say out loud.</li>
+    </ul>
+    <p>It tries all of these methods, then drops the combinations that are too hard to pronounce — so you get a varied list instead of one obvious mashup.</p>
+
+    <h3>🍼 Match by Meaning</h3>
+    <p>This tool works differently — it doesn't blend letters at all. Give it a single name, and it identifies what that name <em>means</em>, then finds other names carrying the same meaning:</p>
+    <ul>
+      <li><span class="lead-line">English or Western names.</span> It checks the name against a curated meaning reference (e.g. "Grace" → grace, elegance) and surfaces other names sharing those same underlying themes.</li>
+      <li><span class="lead-line">Chinese names.</span> It goes a layer deeper — breaking the name into individual characters, looking up each one's meaning, pinyin, and stroke count, then suggesting characters that carry a similar meaning <em>and</em> a similar stroke count, plus combined name candidates built from those matches.</li>
+    </ul>
+    <p>If a name isn't in the reference set, it says so plainly rather than guessing — and lets you pick the meaning themes yourself instead.</p>
+  </section>
+
+  <section id="how-to-use">
+    <h2>How to use each tool</h2>
+
+    <h3>🔗 Blend Names</h3>
+    <ol class="plain">
+      <li><span class="lead-line">Enter names.</span> Type the first name or word, then the second. Add more fields if you're combining three or more.</li>
+      <li><span class="lead-line">Choose style.</span> Pick your preferred case style — Original, Uppercase, or Lowercase.</li>
+      <li><span class="lead-line">Set separator.</span> Decide if you want names joined directly, or with a hyphen, underscore, or custom separator.</li>
+      <li><span class="lead-line">Adjust filters.</span> Control minimum and maximum length, and the number of results to show.</li>
+      <li><span class="lead-line">Enable options.</span> Turn on phonetic blending, initials mode, or the content filter for more personalized output.</li>
+      <li><span class="lead-line">Generate results.</span> Click Combine to see your list of unique names.</li>
+      <li><span class="lead-line">Refine and repeat.</span> Use "Re-shuffle" for fresh variations, or adjust settings to explore different styles.</li>
+      <li><span class="lead-line">Save or export.</span> Copy your favorite names, or download the whole list as a text file.</li>
+    </ol>
+
+    <h3>🍼 Match by Meaning</h3>
+    <ol class="plain">
+      <li><span class="lead-line">Enter one name.</span> A sibling's, a relative's, or simply a name whose feeling you want to carry forward — English or Chinese.</li>
+      <li><span class="lead-line">Review the breakdown.</span> For English names you'll see the meaning and theme tags; for Chinese names, each character's pinyin, meaning, and stroke count.</li>
+      <li><span class="lead-line">Adjust the themes or filters.</span> Toggle meaning themes (English) or a gender lean filter (Chinese) to steer the results.</li>
+      <li><span class="lead-line">Generate matches.</span> English gives you names sharing the same meaning; Chinese gives you similar-meaning, similar-stroke-count characters and combined name candidates.</li>
+      <li><span class="lead-line">Double-check before using it.</span> Especially for Chinese names, confirm with a native speaker or naming professional before finalizing.</li>
+    </ol>
+  </section>
+
+  <section id="tool">
+    <h2>Try the tools</h2>
+    <div class="usecases" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));margin-bottom:20px;">
+      <div class="usecase">
+        <span class="icon">🔗</span>
+        <h3>Blend Names</h3>
+        <p>Give it two or more names or words. It merges them into portmanteau combinations using overlap blending, syllable swapping, full fusion, and sound smoothing — and lets you fine-tune style, separators, and length.</p>
+      </div>
+      <div class="usecase">
+        <span class="icon">🍼</span>
+        <h3>Match by Meaning</h3>
+        <p>Give it one name — a sibling's, a relative's, or one you like. It finds the meaning behind it and suggests others that share it, with a dedicated Chinese character, pinyin, and stroke-count deep-dive.</p>
+      </div>
+    </div>
+    <div id="combiner-root"></div>
+  </section>
+
+  <section id="why-ours">
+    <h2>Why use ours</h2>
+    <p>Most online name mixers only let you combine names in one fixed way, and most meaning-lookup sites stop at a dictionary definition. NameWeaver runs multiple blending techniques at once, supports more than two names, filters out results that are too awkward to use, and — for Chinese names specifically — matches on meaning <em>and</em> stroke count together, not just a translation.</p>
+  </section>
+
+  <section id="use-cases">
+    <h2>Popular use cases</h2>
+    <div class="usecases">
+      <div class="usecase"><span class="icon">🏷️</span><h3>Business / Brand</h3><p>Business owners use NameWeaver to create a memorable combined brand name.</p></div>
+      <div class="usecase"><span class="icon">🌐</span><h3>Domain</h3><p>Generate domain name ideas that are short, easy, and more likely to be available than anything you'd come up with by guessing.</p></div>
+      <div class="usecase"><span class="icon">😄</span><h3>Nickname</h3><p>Merge your name with a word that fits your personality or job to create a nickname that's actually yours.</p></div>
+      <div class="usecase"><span class="icon">👶</span><h3>Baby Name</h3><p>Enter both parents' names to find a baby name combination of father and mother that feels personal and unique.</p></div>
+      <div class="usecase"><span class="icon">✨</span><h3>Stylish Names</h3><p>Create a more stylish version of your name — perfect for social media display names and online profiles.</p></div>
+      <div class="usecase"><span class="icon">🐾</span><h3>Pet Names</h3><p>Mix words that fit your pet's personality and looks for a one-of-a-kind name.</p></div>
+      <div class="usecase"><span class="icon">💍</span><h3>Wedding</h3><p>Mix first and last names together to create a couple name for a wedding hashtag, sign, or invitation.</p></div>
+      <div class="usecase"><span class="icon">💞</span><h3>Couple Ship</h3><p>A fan-style nickname for the relationship, popular for couples and best friends alike.</p></div>
+      <div class="usecase"><span class="icon">🤝</span><h3>BFF</h3><p>Combine your name with your best friend's to create a matching nickname for your friendship — useful for shared bios and more.</p></div>
+      <div class="usecase"><span class="icon">🎮</span><h3>Gaming</h3><p>Get a word tied to your favorite game or playstyle to create a gamertag that's available and still recognizably yours.</p></div>
+    </div>
+  </section>
+
+  <section id="mistakes">
+    <h2>Common mistakes when combining names</h2>
+    <ul class="mistakes">
+      <li>Picking the cleverest blend instead of the most likeable one. The most technically impressive combination isn't always the one you'll want to say out loud for years.</li>
+      <li>Ignoring how it looks in writing. A name can sound fine and still look strange on a wedding invitation or a business card — check both.</li>
+      <li>Skipping the search. Before you use a combined name for a business, brand, or username, search it. Make sure it's not already taken or tied to something unrelated.</li>
+      <li>Forcing a blend that doesn't flow. If every option from your two names sounds clunky, try middle names, nicknames, or just one full name plus one shortened name instead.</li>
+    </ul>
+  </section>
+
+  <section id="tips">
+    <h2>Tips for creating memorable names</h2>
+    <ol class="plain">
+      <li>Use nicknames or shortened versions of names as input, not just full legal names — it often produces smoother results.</li>
+      <li>If you're stuck, try swapping which name goes first. The same two names in reverse order can sound completely different.</li>
+      <li>For brand names and usernames, favor full fusion over heavy blending — keeping more of the original letters makes the result easier to find and remember.</li>
+      <li>Aim for two or three syllables. Shorter combined names are easier to say and remember.</li>
+      <li>Think long term, especially for baby names. A combo that sounds cute today should still feel right in 30 years.</li>
+      <li>Generate more than once — the list changes each time, and your favorite option might be on the second or third try.</li>
+    </ol>
+    <p>If you're naming a business or product, it's worth seeing how professional namers approach the problem — the same balance of being strategic, creative, and technical is worth aiming for with any combined name, not just business ones.</p>
+  </section>
+
+  <section id="discovery" class="discovery">
+    <h2>Explore related topics</h2>
+    <p>A few areas that often come up alongside name combining — worth a look depending on what you're naming.</p>
+
+    <details>
+      <summary>🤰 Pregnancy &amp; Maternity</summary>
+      <div class="sub">
+        <h4>Navigating pregnancy and maternity</h4>
+        <p>Pregnancy and maternity represent a transformative period, encompassing the physical, emotional, and practical changes that occur from conception through childbirth and the postpartum period. Understanding the different stages and needs during this time is crucial for both the expectant parent and their support network.</p>
+        <h4>Essential maternity wear</h4>
+        <p>Maternity wear includes garments designed to accommodate a growing belly and changing body shape, offering comfort and support — stretchy leggings, supportive bras, adjustable waistbands, and tops with extra room or nursing access. A few versatile pieces can make the nine months more comfortable and manageable.</p>
+        <h4>The role of prenatal vitamins</h4>
+        <p>Prenatal vitamins are formulated to provide essential nutrients like folic acid, iron, and calcium, vital for both the parent's health and the baby's development. Folic acid in particular helps prevent neural tube defects; prenatal vitamins help bridge any nutritional gaps alongside a balanced diet.</p>
+        <h4>Preparing for the baby's arrival</h4>
+        <p>As pregnancy progresses, preparation shifts to setting up a nursery, acquiring essentials like a crib, car seat, diapers, and clothing, and planning for childcare or parental leave. Many expectant parents attend childbirth classes to learn about labor, delivery, and newborn care.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>🏷️ Brands</summary>
+      <div class="sub">
+        <h4>Understanding the role of brands</h4>
+        <p>Brands represent the identity, reputation, and perceived value of a product, service, or company. They help consumers differentiate between offerings and often carry associations with quality, reliability, or specific lifestyles. A strong brand can foster loyalty and command a price premium.</p>
+        <h4>Apple: a case study in brand power</h4>
+        <p>Apple has cultivated a strong identity based on innovation, design, and user experience. Its branding focuses on simplicity, elegance, and ecosystem integration, with marketing that emphasizes emotional connection and lifestyle enhancement over technical specifications.</p>
+        <h4>Coca-Cola: a global icon</h4>
+        <p>Coca-Cola's brand strength comes from decades of consistent messaging and global reach, evoking happiness, refreshment, and shared moments tied to holidays and gatherings. Its focus on universal, emotional themes makes it one of the most valuable and enduring brands globally.</p>
+        <h4>Evaluating brands as a consumer</h4>
+        <p>Consumers often rely on brand reputation as a shortcut for judging quality and reliability. Reviews, stated values, customer service reputation, and social responsibility initiatives all shape how a brand is perceived.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>🎨 Visual Art &amp; Design</summary>
+      <div class="sub">
+        <h4>Exploring visual art and design</h4>
+        <p>Visual art and design encompass creative practices focused on communicating ideas, emotions, and aesthetics through visual means — painting, sculpture, and drawing alongside graphic design, photography, digital art, and architecture. The field constantly evolves with technology and cultural shifts.</p>
+        <h4>Graphic design: communicating visually</h4>
+        <p>Graphic design focuses on creating visual concepts that communicate ideas — using typography, imagery, colour, and layout to build logos, websites, marketing materials, and interfaces. The goal is usually to solve a communication problem or convey a message effectively.</p>
+        <h4>Fine art: expression and aesthetics</h4>
+        <p>Fine art is often created primarily for aesthetic or intellectual appreciation rather than a commercial purpose, spanning painting, sculpture, drawing, printmaking, and photography, with artists exploring personal expression, social commentary, or formal qualities like colour and texture.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>📊 Brand Management</summary>
+      <div class="sub">
+        <h4>Defining brand management</h4>
+        <p>Brand management is the strategic process of creating, maintaining, and enhancing a brand's reputation and image — overseeing visual identity, messaging, values, and customer experience to build brand equity, which shapes loyalty, market share, and profitability.</p>
+        <h4>Key components</h4>
+        <p>This includes defining the brand's purpose, positioning, and target audience; developing visual elements like logos, colors, and typography; and maintaining a consistent voice across every touchpoint, from advertising to packaging to customer service.</p>
+        <h4>The importance of consistency</h4>
+        <p>A consistent brand experience builds trust and recognition. Inconsistent messaging or visuals confuse the audience and dilute the brand's identity — consistency applies to product quality and service delivery, not just marketing materials.</p>
+        <h4>Measuring brand performance</h4>
+        <p>Brand awareness surveys, satisfaction scores, loyalty rates, market share, and social engagement all help brand managers understand what's working and where to invest next.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>🌳 Ancestry &amp; Genealogy</summary>
+      <div class="sub">
+        <h4>Understanding ancestry and genealogy services</h4>
+        <p>Exploring ancestry and genealogy involves tracing family history through records, documents, and sometimes DNA analysis — helping people discover their lineage, connect with relatives, and understand their ethnic origins through large databases of historical records.</p>
+        <h4>Exploring Ancestry.com</h4>
+        <p>Ancestry.com offers extensive databases and tools for building family trees, including billions of historical records worldwide, plus DNA testing services that can reveal ethnic makeup and connect users with living relatives.</p>
+        <h4>Considering MyHeritage</h4>
+        <p>MyHeritage is known for strong international record collections and DNA testing, with "Smart Matches" and "Record Matches" features that help users find connections and records related to their family tree automatically.</p>
+        <h4>Focusing on FamilySearch</h4>
+        <p>FamilySearch is a non-profit offering free access to genealogical records, including a large collection of digital images and indexed records plus a collaborative family tree — a strong free starting point for new researchers.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>👶 Babies</summary>
+      <div class="sub">
+        <h4>Understanding the needs of infants</h4>
+        <p>Babies are individuals in the earliest stage of human development, typically from birth to around one year. Their needs center on feeding, sleep, warmth, comfort, and safety, with a nurturing environment key to physical, cognitive, and emotional development.</p>
+        <h4>Essential products for newborn care</h4>
+        <p>Diapers, wipes, bottles or nursing supplies, and formula (if not breastfeeding) are common essentials, alongside a safe sleep setup like a crib or bassinet, clothing, blankets, a car seat, and a stroller or carrier.</p>
+        <h4>Developmental milestones to observe</h4>
+        <p>Infants progress through milestones like holding their head up, rolling over, sitting up, crawling, and eventually walking, alongside recognizing faces, responding to sounds, babbling, and understanding simple words.</p>
+        <h4>Feeding and nutrition</h4>
+        <p>Breast milk or formula covers all nutritional needs for the first six months; solids are typically introduced around six months, one at a time, to help monitor for allergies.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>🗣️ Language Resources</summary>
+      <div class="sub">
+        <h4>Exploring language learning resources</h4>
+        <p>Language resources span traditional textbooks and dictionaries to apps, online courses, and interactive platforms — supporting vocabulary building, grammar, listening, reading, and speaking practice depending on a learner's style and goals.</p>
+        <h4>Duolingo: gamified language learning</h4>
+        <p>Duolingo offers short, gamified lessons across many languages, using points, streaks, and leaderboards to keep practice engaging — a strong starting point for beginners building foundational vocabulary.</p>
+        <h4>Memrise: contextual vocabulary acquisition</h4>
+        <p>Memrise emphasizes practical, real-world vocabulary using spaced repetition and native-speaker video clips, making learning memorable through mnemonics rather than simple flashcards.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>🧸 Babies &amp; Toddlers</summary>
+      <div class="sub">
+        <h4>Understanding the world of babies &amp; toddlers</h4>
+        <p>This category covers products and services for infants and young children from birth to around three years old — from care essentials like diapers and feeding supplies to developmental toys, clothing, and safety equipment, with needs changing rapidly at each stage.</p>
+        <h4>Infant car seats: safety first</h4>
+        <p>Infant car seats are designed specifically for newborns and smaller infants, typically rear-facing with a base that stays in the car. Key features include side-impact protection, a newborn support insert, and a secure five-point harness.</p>
+        <h4>Toddler essentials: the convertible car seat</h4>
+        <p>Convertible car seats extend use through multiple stages — rear-facing infant, forward-facing toddler, and eventually a high-back booster — with adjustable headrests, multiple recline positions, and easy-to-clean fabrics.</p>
+        <h4>Navigating feeding solutions</h4>
+        <p>Feeding products range from bottles and breast pumps for infants to high chairs and sippy cups for toddlers, often chosen for natural latch design, easy cleaning, and ergonomic, non-slip parts that support self-feeding.</p>
+      </div>
+    </details>
+  </section>
+
+</div>
+
+<footer class="wrap">
+  Names are generated locally in your browser. Always double-check availability (domains, handles, trademarks) before committing to a combined name for a business or brand.
+</footer>
+
+<script>
+const { useState, useCallback, useRef } = React;
+const h = React.createElement;
+
+/* ---------- blending engine ---------- */
+
+function syllabify(word){
+  const m = word.match(/[^aeiouy]*[aeiouy]+[^aeiouy]*/gi);
+  return (m && m.length) ? m : [word];
+}
+
+function overlapBlend(a, b){
+  const res = [];
+  const A = a.toLowerCase(), B = b.toLowerCase();
+  const maxK = Math.min(A.length, B.length) - 1;
+  for(let k = maxK; k >= 2; k--){
+    if(A.slice(-k) === B.slice(0, k)){
+      res.push({ core: a.slice(0, a.length - k) + b, boundary: a.length - k, technique: "overlap" });
+      break;
+    }
+  }
+  for(let k = maxK; k >= 2; k--){
+    if(B.slice(-k) === A.slice(0, k)){
+      res.push({ core: b.slice(0, b.length - k) + a, boundary: b.length - k, technique: "overlap" });
+      break;
+    }
+  }
+  // anchor pattern: leading consonant cluster of one word + the other word whole
+  // (this is how most real portmanteaus like "Brangelina" actually form)
+  const va = A.search(/[aeiou]/);
+  if(va >= 2 && va < a.length - 1){
+    res.push({ core: a.slice(0, va) + b, boundary: va, technique: "overlap" });
+  }
+  const vb = (() => {
+    for(let i = B.length - 1; i >= 0; i--){ if("aeiou".includes(B[i])) return i; }
+    return -1;
+  })();
+  if(vb >= 0 && vb < b.length - 1){
+    const coda = b.slice(vb + 1);
+    if(coda.length >= 2) res.push({ core: a + coda, boundary: a.length, technique: "overlap" });
+  }
+  return res;
+}
+
+function syllableSwap(a, b){
+  const sa = syllabify(a), sb = syllabify(b);
+  const res = [];
+  const takeA = Math.max(1, Math.ceil(sa.length / 2));
+  const takeB = Math.max(1, Math.floor(sb.length / 2)) || 1;
+  const front = sa.slice(0, takeA).join("");
+  const back = sb.slice(sb.length - takeB).join("");
+  res.push({ core: front + back, boundary: front.length, technique: "syllable" });
+
+  const takeA2 = Math.max(1, Math.floor(sa.length / 2)) || 1;
+  const takeB2 = Math.max(1, Math.ceil(sb.length / 2));
+  const front2 = sb.slice(0, takeB2).join("");
+  const back2 = sa.slice(sa.length - takeA2).join("");
+  res.push({ core: front2 + back2, boundary: front2.length, technique: "syllable" });
+  return res;
+}
+
+function fullFusion(a, b){
+  return [
+    { core: a + b, boundary: a.length, technique: "fusion" },
+    { core: b + a, boundary: b.length, technique: "fusion" }
+  ];
+}
+
+function smoothSound(str){
+  return str.replace(/(.)\1{2,}/gi, "$1$1");
+}
+
+function hasConsonantRun(str){ return /[^aeiou\s'-]{4,}/i.test(str); }
+function hasVowelRun(str){ return /[aeiou]{4,}/i.test(str); }
+
+const BLOCKED = ["fuk","shi7","cnt","fck"]; // minimal guard for accidental awkward fusions
+function containsBlocked(str){
+  const s = str.toLowerCase();
+  return BLOCKED.some(b => s.includes(b));
+}
+
+function scoreCandidate(cand, minLen, maxLen){
+  let score = 0;
+  const len = cand.core.length;
+  if(len >= minLen && len <= maxLen) score += 3; else score -= 3;
+  if(len >= 4 && len <= 9) score += 1;
+  const syl = syllabify(cand.core).length;
+  if(syl >= 2 && syl <= 3) score += 2;
+  if(cand.technique === "overlap") score += 1;
+  if(hasConsonantRun(cand.core)) score -= 2;
+  if(hasVowelRun(cand.core)) score -= 2;
+  return score;
+}
+
+function dedupe(list){
+  const seen = new Set();
+  return list.filter(c => {
+    const k = c.core.toLowerCase();
+    if(seen.has(k) || !k) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+function combinePair(a, b, opts){
+  let cands = [...overlapBlend(a, b), ...syllableSwap(a, b), ...fullFusion(a, b)];
+  if(opts.phonetic){
+    cands = cands.map(c => ({ ...c, core: smoothSound(c.core) }));
+  }
+  if(opts.contentFilter){
+    cands = cands.filter(c => !containsBlocked(c.core));
+  }
+  if(opts.easy){
+    cands = cands.filter(c => !hasConsonantRun(c.core) && !hasVowelRun(c.core));
+  }
+  cands = dedupe(cands);
+  cands = cands.map(c => ({ ...c, score: scoreCandidate(c, opts.minLen, opts.maxLen) }));
+  cands.sort((x, y) => y.score - x.score);
+  return cands.slice(0, 12);
+}
+
+function combineAll(names, opts){
+  let pool = combinePair(names[0], names[1], opts);
+  for(let i = 2; i < names.length; i++){
+    if(opts.initialsMode){
+      const initial = names[i].charAt(0).toUpperCase();
+      pool = pool.flatMap(p => ([
+        { core: p.core + initial, boundary: p.boundary, technique: p.technique },
+        { core: initial + p.core, boundary: 1, technique: p.technique }
+      ]));
+    } else {
+      pool = pool.flatMap(p => combinePair(p.core, names[i], opts)).slice(0, 60);
+    }
+    pool = dedupe(pool);
+    pool = pool.map(p => ({ ...p, score: scoreCandidate(p, opts.minLen, opts.maxLen) }));
+    pool.sort((x, y) => y.score - x.score);
+    pool = pool.slice(0, 40);
+  }
+  pool = pool.filter(p => p.core.length >= opts.minLen && p.core.length <= opts.maxLen);
+  if(opts.contentFilter) pool = pool.filter(p => !containsBlocked(p.core));
+  return dedupe(pool);
+}
+
+function formatCandidate(cand, opts){
+  let base = cand.core;
+  const boundary = Math.min(cand.boundary, base.length);
+  if(opts.separator){
+    base = base.slice(0, boundary) + opts.separator + base.slice(boundary);
+  }
+  if(opts.caseStyle === "upper") return base.toUpperCase();
+  if(opts.caseStyle === "lower") return base.toLowerCase();
+  return base.charAt(0).toUpperCase() + base.slice(1).toLowerCase();
+}
+
+/* ---------- meaning-match data & engine ---------- */
+
+function isCJK(str){ return /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/.test(str); }
+
+const EN_NAMES = [
+  {n:"Grace",g:"f",meaning:"grace, elegance",tags:["grace","elegance","virtue"]},
+  {n:"Sophia",g:"f",meaning:"wisdom",tags:["wisdom","intelligence"]},
+  {n:"Sophie",g:"f",meaning:"wisdom",tags:["wisdom","intelligence"]},
+  {n:"Chloe",g:"f",meaning:"blooming, verdant",tags:["nature","growth"]},
+  {n:"Ava",g:"f",meaning:"life, living one",tags:["life","vitality"]},
+  {n:"Zoe",g:"f",meaning:"life",tags:["life","vitality"]},
+  {n:"Eve",g:"f",meaning:"life",tags:["life"]},
+  {n:"Eva",g:"f",meaning:"life",tags:["life"]},
+  {n:"Amara",g:"f",meaning:"eternal, grace",tags:["eternity","grace"]},
+  {n:"Clara",g:"f",meaning:"clear, bright",tags:["light","clarity"]},
+  {n:"Claire",g:"f",meaning:"clear, bright",tags:["light","clarity"]},
+  {n:"Lucy",g:"f",meaning:"light",tags:["light"]},
+  {n:"Lucia",g:"f",meaning:"light",tags:["light"]},
+  {n:"Stella",g:"f",meaning:"star",tags:["light","celestial"]},
+  {n:"Luna",g:"f",meaning:"moon",tags:["celestial","light"]},
+  {n:"Aurora",g:"f",meaning:"dawn",tags:["light","dawn"]},
+  {n:"Ivy",g:"f",meaning:"climbing plant, fidelity",tags:["nature","loyalty"]},
+  {n:"Rose",g:"f",meaning:"flower",tags:["nature","beauty"]},
+  {n:"Lily",g:"f",meaning:"flower, purity",tags:["nature","purity"]},
+  {n:"Violet",g:"f",meaning:"flower, purple",tags:["nature","beauty"]},
+  {n:"Hazel",g:"f",meaning:"hazel tree",tags:["nature"]},
+  {n:"Willow",g:"f",meaning:"willow tree, grace",tags:["nature","grace"]},
+  {n:"Fern",g:"f",meaning:"fern plant",tags:["nature"]},
+  {n:"Daisy",g:"f",meaning:"flower, day's eye",tags:["nature","joy"]},
+  {n:"Jasmine",g:"f",meaning:"flower, fragrant",tags:["nature","beauty"]},
+  {n:"Iris",g:"f",meaning:"rainbow, flower",tags:["nature","light","beauty"]},
+  {n:"Faith",g:"f",meaning:"faith, trust",tags:["faith","trust"]},
+  {n:"Hope",g:"f",meaning:"hope",tags:["hope","faith"]},
+  {n:"Joy",g:"f",meaning:"joy",tags:["joy"]},
+  {n:"Charity",g:"f",meaning:"charity, love",tags:["love","virtue"]},
+  {n:"Verity",g:"f",meaning:"truth",tags:["truth","virtue"]},
+  {n:"Serenity",g:"f",meaning:"peace, calm",tags:["peace","calm"]},
+  {n:"Bianca",g:"f",meaning:"white, pure",tags:["purity","light"]},
+  {n:"Blanche",g:"f",meaning:"white, pure",tags:["purity"]},
+  {n:"Vera",g:"f",meaning:"truth",tags:["truth"]},
+  {n:"Nadia",g:"f",meaning:"hope",tags:["hope"]},
+  {n:"Victoria",g:"f",meaning:"victory",tags:["victory","strength"]},
+  {n:"Valentina",g:"f",meaning:"strength, health",tags:["strength","vitality"]},
+  {n:"Valeria",g:"f",meaning:"strength",tags:["strength"]},
+  {n:"Bridget",g:"f",meaning:"strength, exalted one",tags:["strength","nobility"]},
+  {n:"Matilda",g:"f",meaning:"strength in battle",tags:["strength"]},
+  {n:"Audrey",g:"f",meaning:"noble strength",tags:["strength","nobility"]},
+  {n:"Alice",g:"f",meaning:"noble, truth",tags:["nobility","truth"]},
+  {n:"Adelaide",g:"f",meaning:"noble",tags:["nobility"]},
+  {n:"Eleanor",g:"f",meaning:"light, shining one",tags:["light"]},
+  {n:"Helen",g:"f",meaning:"light, bright, shining one",tags:["light"]},
+  {n:"Elena",g:"f",meaning:"light, bright",tags:["light"]},
+  {n:"Phoebe",g:"f",meaning:"bright, radiant",tags:["light"]},
+  {n:"Amelia",g:"f",meaning:"industrious, hard-working",tags:["diligence"]},
+  {n:"Isabella",g:"f",meaning:"devoted to God",tags:["faith","devotion"]},
+  {n:"Gabriella",g:"f",meaning:"God is my strength",tags:["faith","strength"]},
+  {n:"Michaela",g:"f",meaning:"who is like God",tags:["faith"]},
+  {n:"Angela",g:"f",meaning:"angel, messenger",tags:["faith","protection"]},
+  {n:"Seraphina",g:"f",meaning:"fiery, burning one",tags:["faith","light"]},
+  {n:"Naomi",g:"f",meaning:"pleasantness",tags:["joy","grace"]},
+  {n:"Pearl",g:"f",meaning:"pearl, purity",tags:["purity","beauty"]},
+  {n:"Ruby",g:"f",meaning:"red gemstone, passion",tags:["beauty","vitality"]},
+  {n:"Jade",g:"u",meaning:"jade gemstone, precious",tags:["beauty","virtue"]},
+  {n:"Amber",g:"f",meaning:"amber gemstone",tags:["beauty","nature"]},
+  {n:"Crystal",g:"f",meaning:"clear ice, purity",tags:["purity","light"]},
+  {n:"Autumn",g:"f",meaning:"autumn season",tags:["nature"]},
+  {n:"Summer",g:"f",meaning:"summer season",tags:["nature","joy"]},
+  {n:"Dawn",g:"f",meaning:"dawn, daybreak",tags:["light","dawn"]},
+  {n:"Skye",g:"u",meaning:"sky",tags:["nature","celestial"]},
+  {n:"River",g:"u",meaning:"river",tags:["nature"]},
+  {n:"Phoenix",g:"u",meaning:"mythical bird, rebirth",tags:["strength","rebirth"]},
+  {n:"Felicity",g:"f",meaning:"happiness",tags:["joy"]},
+  {n:"Beatrice",g:"f",meaning:"she who brings happiness",tags:["joy","faith"]},
+  {n:"Leo",g:"m",meaning:"lion, brave",tags:["strength","courage"]},
+  {n:"Leon",g:"m",meaning:"lion",tags:["strength","courage"]},
+  {n:"Leonardo",g:"m",meaning:"lion",tags:["strength","courage"]},
+  {n:"Ethan",g:"m",meaning:"strong, firm, enduring",tags:["strength"]},
+  {n:"Liam",g:"m",meaning:"strong-willed warrior",tags:["strength"]},
+  {n:"William",g:"m",meaning:"resolute protector",tags:["protection","strength"]},
+  {n:"Alexander",g:"m",meaning:"defender of the people",tags:["protection","strength"]},
+  {n:"Nicholas",g:"m",meaning:"victory of the people",tags:["victory"]},
+  {n:"Andrew",g:"m",meaning:"manly, brave",tags:["strength","courage"]},
+  {n:"Theodore",g:"m",meaning:"gift of God",tags:["faith"]},
+  {n:"Gabriel",g:"m",meaning:"God is my strength",tags:["faith","strength"]},
+  {n:"Michael",g:"m",meaning:"who is like God",tags:["faith"]},
+  {n:"Samuel",g:"m",meaning:"God has heard",tags:["faith"]},
+  {n:"Benjamin",g:"m",meaning:"son of the right hand, favored",tags:["nobility"]},
+  {n:"Oliver",g:"m",meaning:"olive tree, peace",tags:["peace","nature"]},
+  {n:"Felix",g:"m",meaning:"happy, fortunate",tags:["joy","luck"]},
+  {n:"Owen",g:"m",meaning:"young warrior, noble",tags:["strength","nobility"]},
+  {n:"Arthur",g:"m",meaning:"bear, noble and strong",tags:["strength","nobility"]},
+  {n:"Edward",g:"m",meaning:"wealthy guardian",tags:["protection","prosperity"]},
+  {n:"Henry",g:"m",meaning:"ruler of the home",tags:["nobility","leadership"]},
+  {n:"Victor",g:"m",meaning:"victor, conqueror",tags:["victory"]}
+];
+
+const ZH_CHARS = [
+  {c:"美",py:"měi",en:"beautiful",cat:"beauty",strokes:9,g:"f"},
+  {c:"丽",py:"lì",en:"beautiful, pretty",cat:"beauty",strokes:7,g:"f"},
+  {c:"婷",py:"tíng",en:"graceful",cat:"beauty",strokes:12,g:"f"},
+  {c:"娜",py:"nà",en:"graceful, elegant",cat:"beauty",strokes:9,g:"f"},
+  {c:"雅",py:"yǎ",en:"elegant",cat:"beauty",strokes:12,g:"u"},
+  {c:"芳",py:"fāng",en:"fragrant",cat:"beauty",strokes:7,g:"f"},
+  {c:"香",py:"xiāng",en:"fragrant",cat:"beauty",strokes:9,g:"f"},
+  {c:"妍",py:"yán",en:"beautiful, pretty",cat:"beauty",strokes:7,g:"f"},
+  {c:"慧",py:"huì",en:"wise, intelligent",cat:"wisdom",strokes:15,g:"f"},
+  {c:"智",py:"zhì",en:"wisdom, intellect",cat:"wisdom",strokes:12,g:"u"},
+  {c:"颖",py:"yǐng",en:"clever, outstanding",cat:"wisdom",strokes:13,g:"u"},
+  {c:"睿",py:"ruì",en:"wise, perceptive",cat:"wisdom",strokes:14,g:"m"},
+  {c:"博",py:"bó",en:"erudite, broad-learned",cat:"wisdom",strokes:12,g:"m"},
+  {c:"哲",py:"zhé",en:"wise, philosophical",cat:"wisdom",strokes:10,g:"m"},
+  {c:"思",py:"sī",en:"thought, contemplation",cat:"wisdom",strokes:9,g:"u"},
+  {c:"强",py:"qiáng",en:"strong",cat:"strength",strokes:12,g:"m"},
+  {c:"勇",py:"yǒng",en:"brave",cat:"strength",strokes:9,g:"m"},
+  {c:"刚",py:"gāng",en:"firm, hard",cat:"strength",strokes:6,g:"m"},
+  {c:"健",py:"jiàn",en:"healthy, robust",cat:"strength",strokes:10,g:"m"},
+  {c:"壮",py:"zhuàng",en:"robust, strong",cat:"strength",strokes:6,g:"m"},
+  {c:"坚",py:"jiān",en:"firm, steadfast",cat:"strength",strokes:7,g:"m"},
+  {c:"俊",py:"jùn",en:"handsome, talented",cat:"talent",strokes:9,g:"m"},
+  {c:"杰",py:"jié",en:"outstanding",cat:"talent",strokes:8,g:"m"},
+  {c:"才",py:"cái",en:"talent",cat:"talent",strokes:3,g:"u"},
+  {c:"文",py:"wén",en:"literary, cultured",cat:"talent",strokes:4,g:"u"},
+  {c:"华",py:"huá",en:"splendid",cat:"talent",strokes:6,g:"u"},
+  {c:"德",py:"dé",en:"virtue",cat:"virtue",strokes:15,g:"u"},
+  {c:"善",py:"shàn",en:"kind, good",cat:"virtue",strokes:12,g:"u"},
+  {c:"仁",py:"rén",en:"benevolence",cat:"virtue",strokes:4,g:"m"},
+  {c:"义",py:"yì",en:"righteousness",cat:"virtue",strokes:3,g:"m"},
+  {c:"诚",py:"chéng",en:"sincere",cat:"virtue",strokes:8,g:"u"},
+  {c:"信",py:"xìn",en:"trustworthy",cat:"virtue",strokes:9,g:"m"},
+  {c:"礼",py:"lǐ",en:"propriety, courtesy",cat:"virtue",strokes:5,g:"u"},
+  {c:"富",py:"fù",en:"wealthy",cat:"prosperity",strokes:12,g:"m"},
+  {c:"财",py:"cái",en:"wealth, fortune",cat:"prosperity",strokes:7,g:"m"},
+  {c:"贵",py:"guì",en:"noble, precious",cat:"prosperity",strokes:9,g:"u"},
+  {c:"福",py:"fú",en:"fortune, blessing",cat:"prosperity",strokes:13,g:"u"},
+  {c:"禄",py:"lù",en:"prosperity",cat:"prosperity",strokes:12,g:"m"},
+  {c:"花",py:"huā",en:"flower",cat:"nature",strokes:7,g:"f"},
+  {c:"兰",py:"lán",en:"orchid",cat:"nature",strokes:5,g:"f"},
+  {c:"莲",py:"lián",en:"lotus",cat:"nature",strokes:10,g:"f"},
+  {c:"梅",py:"méi",en:"plum blossom",cat:"nature",strokes:11,g:"f"},
+  {c:"竹",py:"zhú",en:"bamboo",cat:"nature",strokes:6,g:"m"},
+  {c:"松",py:"sōng",en:"pine tree",cat:"nature",strokes:8,g:"m"},
+  {c:"柳",py:"liǔ",en:"willow",cat:"nature",strokes:9,g:"f"},
+  {c:"海",py:"hǎi",en:"ocean",cat:"nature",strokes:10,g:"m"},
+  {c:"山",py:"shān",en:"mountain",cat:"nature",strokes:3,g:"m"},
+  {c:"峰",py:"fēng",en:"peak",cat:"nature",strokes:10,g:"m"},
+  {c:"石",py:"shí",en:"stone",cat:"nature",strokes:5,g:"m"},
+  {c:"玉",py:"yù",en:"jade",cat:"nature",strokes:5,g:"f"},
+  {c:"光",py:"guāng",en:"light, bright",cat:"light",strokes:6,g:"m"},
+  {c:"明",py:"míng",en:"bright",cat:"light",strokes:8,g:"u"},
+  {c:"星",py:"xīng",en:"star",cat:"light",strokes:9,g:"u"},
+  {c:"月",py:"yuè",en:"moon",cat:"light",strokes:4,g:"f"},
+  {c:"云",py:"yún",en:"cloud",cat:"nature",strokes:4,g:"u"},
+  {c:"天",py:"tiān",en:"heaven, sky",cat:"celestial",strokes:4,g:"u"},
+  {c:"宇",py:"yǔ",en:"universe",cat:"celestial",strokes:6,g:"u"},
+  {c:"辰",py:"chén",en:"celestial, time",cat:"celestial",strokes:7,g:"u"},
+  {c:"晨",py:"chén",en:"morning",cat:"light",strokes:11,g:"u"},
+  {c:"旭",py:"xù",en:"rising sun",cat:"light",strokes:6,g:"m"},
+  {c:"朗",py:"lǎng",en:"bright, clear",cat:"light",strokes:10,g:"m"},
+  {c:"静",py:"jìng",en:"quiet, calm",cat:"peace",strokes:14,g:"f"},
+  {c:"安",py:"ān",en:"peace",cat:"peace",strokes:6,g:"u"},
+  {c:"宁",py:"níng",en:"peaceful, tranquil",cat:"peace",strokes:5,g:"u"},
+  {c:"平",py:"píng",en:"peace, level",cat:"peace",strokes:5,g:"u"},
+  {c:"和",py:"hé",en:"harmony",cat:"peace",strokes:8,g:"u"},
+  {c:"新",py:"xīn",en:"new",cat:"talent",strokes:13,g:"u"},
+  {c:"乐",py:"lè",en:"happy",cat:"joy",strokes:5,g:"u"},
+  {c:"欢",py:"huān",en:"joyful",cat:"joy",strokes:6,g:"u"},
+  {c:"喜",py:"xǐ",en:"happy, joy",cat:"joy",strokes:12,g:"u"},
+  {c:"悦",py:"yuè",en:"delighted",cat:"joy",strokes:10,g:"f"},
+  {c:"心",py:"xīn",en:"heart",cat:"love",strokes:4,g:"u"},
+  {c:"爱",py:"ài",en:"love",cat:"love",strokes:10,g:"u"},
+  {c:"恩",py:"ēn",en:"grace, kindness",cat:"love",strokes:10,g:"u"},
+  {c:"洁",py:"jié",en:"clean, pure",cat:"purity",strokes:9,g:"f"},
+  {c:"纯",py:"chún",en:"pure",cat:"purity",strokes:7,g:"f"},
+  {c:"清",py:"qīng",en:"clear, pure",cat:"purity",strokes:11,g:"u"},
+  {c:"白",py:"bái",en:"white, pure",cat:"purity",strokes:5,g:"u"},
+  {c:"瑞",py:"ruì",en:"auspicious",cat:"auspicious",strokes:13,g:"u"},
+  {c:"祥",py:"xiáng",en:"auspicious",cat:"auspicious",strokes:11,g:"u"},
+  {c:"珍",py:"zhēn",en:"precious",cat:"beauty",strokes:9,g:"f"},
+  {c:"宝",py:"bǎo",en:"treasure",cat:"beauty",strokes:8,g:"u"},
+  {c:"琳",py:"lín",en:"fine jade",cat:"beauty",strokes:12,g:"f"},
+  {c:"怡",py:"yí",en:"joyful, harmonious",cat:"joy",strokes:8,g:"f"},
+  {c:"娟",py:"juān",en:"graceful, pretty",cat:"beauty",strokes:10,g:"f"},
+  {c:"玲",py:"líng",en:"delicate, tinkling jade",cat:"beauty",strokes:9,g:"f"},
+  {c:"涵",py:"hán",en:"cultured, contains depth",cat:"talent",strokes:11,g:"u"},
+  {c:"轩",py:"xuān",en:"high, uplifted",cat:"nobility",strokes:7,g:"m"},
+  {c:"泽",py:"zé",en:"benevolence, grace like water",cat:"virtue",strokes:8,g:"m"},
+  {c:"萱",py:"xuān",en:"day lily, symbol of a mother's love",cat:"nature",strokes:12,g:"f"},
+  {c:"梓",py:"zǐ",en:"catalpa tree, homeland",cat:"nature",strokes:11,g:"u"},
+  {c:"诗",py:"shī",en:"poetry",cat:"talent",strokes:8,g:"f"},
+  {c:"浩",py:"hào",en:"vast, grand",cat:"nature",strokes:10,g:"m"},
+  {c:"然",py:"rán",en:"natural, as it should be",cat:"nature",strokes:12,g:"m"},
+  {c:"子",py:"zǐ",en:"child, scholar, master",cat:"nobility",strokes:3,g:"m"},
+  {c:"欣",py:"xīn",en:"joyful, thriving",cat:"joy",strokes:8,g:"u"},
+  {c:"伟",py:"wěi",en:"great, greatness",cat:"strength",strokes:6,g:"m"},
+  {c:"伦",py:"lún",en:"ethics, order, peer",cat:"virtue",strokes:6,g:"m"},
+  {c:"婉",py:"wǎn",en:"gentle, graceful",cat:"beauty",strokes:11,g:"f"},
+  {c:"晴",py:"qíng",en:"clear sky, sunny",cat:"light",strokes:12,g:"f"},
+  {c:"彤",py:"tóng",en:"red, vermillion",cat:"beauty",strokes:7,g:"f"},
+  {c:"淑",py:"shū",en:"gentle, virtuous",cat:"virtue",strokes:11,g:"f"},
+  {c:"晓",py:"xiǎo",en:"dawn, to know",cat:"light",strokes:10,g:"u"},
+  {c:"锐",py:"ruì",en:"sharp, keen",cat:"talent",strokes:12,g:"m"},
+  {c:"昊",py:"hào",en:"vast sky",cat:"celestial",strokes:8,g:"m"},
+  {c:"栋",py:"dòng",en:"ridge beam, pillar of support",cat:"strength",strokes:9,g:"m"},
+  {c:"嘉",py:"jiā",en:"excellent, auspicious",cat:"auspicious",strokes:14,g:"u"},
+  {c:"水",py:"shuǐ",en:"water",cat:"nature",strokes:4,g:"u"},
+  {c:"金",py:"jīn",en:"gold, metal",cat:"nature",strokes:8,g:"u"},
+  {c:"木",py:"mù",en:"wood, tree",cat:"nature",strokes:4,g:"u"},
+  {c:"风",py:"fēng",en:"wind",cat:"nature",strokes:4,g:"u"},
+  {c:"雨",py:"yǔ",en:"rain",cat:"nature",strokes:8,g:"u"},
+  {c:"雪",py:"xuě",en:"snow",cat:"nature",strokes:11,g:"f"},
+  {c:"虹",py:"hóng",en:"rainbow",cat:"nature",strokes:9,g:"f"},
+  {c:"林",py:"lín",en:"forest",cat:"nature",strokes:8,g:"m"},
+  {c:"森",py:"sēn",en:"dense forest",cat:"nature",strokes:12,g:"m"},
+  {c:"枫",py:"fēng",en:"maple",cat:"nature",strokes:8,g:"u"},
+  {c:"桃",py:"táo",en:"peach tree",cat:"nature",strokes:10,g:"f"},
+  {c:"杏",py:"xìng",en:"apricot",cat:"nature",strokes:7,g:"f"},
+  {c:"菊",py:"jú",en:"chrysanthemum",cat:"nature",strokes:11,g:"f"},
+  {c:"莉",py:"lì",en:"jasmine",cat:"nature",strokes:10,g:"f"},
+  {c:"茜",py:"qiàn",en:"vivid red, madder plant",cat:"nature",strokes:9,g:"f"},
+  {c:"蓉",py:"róng",en:"lotus, hibiscus",cat:"nature",strokes:13,g:"f"},
+  {c:"菲",py:"fēi",en:"fragrant, luxuriant",cat:"nature",strokes:11,g:"f"},
+  {c:"桐",py:"tóng",en:"paulownia tree",cat:"nature",strokes:10,g:"u"},
+  {c:"楠",py:"nán",en:"nanmu tree, precious wood",cat:"nature",strokes:13,g:"m"},
+  {c:"江",py:"jiāng",en:"river",cat:"nature",strokes:6,g:"m"},
+  {c:"河",py:"hé",en:"river",cat:"nature",strokes:8,g:"u"},
+  {c:"湖",py:"hú",en:"lake",cat:"nature",strokes:12,g:"u"},
+  {c:"波",py:"bō",en:"wave",cat:"nature",strokes:8,g:"m"},
+  {c:"洋",py:"yáng",en:"ocean, vast",cat:"nature",strokes:9,g:"m"},
+  {c:"沙",py:"shā",en:"sand",cat:"nature",strokes:7,g:"u"},
+  {c:"岩",py:"yán",en:"rock, cliff",cat:"nature",strokes:8,g:"m"},
+  {c:"岳",py:"yuè",en:"mountain peak",cat:"nature",strokes:8,g:"m"},
+  {c:"峻",py:"jùn",en:"steep, high",cat:"nature",strokes:10,g:"m"},
+  {c:"翠",py:"cuì",en:"kingfisher green, jade green",cat:"beauty",strokes:14,g:"f"},
+  {c:"碧",py:"bì",en:"jade green, blue-green",cat:"beauty",strokes:14,g:"f"},
+  {c:"丹",py:"dān",en:"red, cinnabar, sincere",cat:"beauty",strokes:4,g:"f"},
+  {c:"朱",py:"zhū",en:"vermillion red",cat:"beauty",strokes:6,g:"u"},
+  {c:"紫",py:"zǐ",en:"purple",cat:"beauty",strokes:12,g:"f"},
+  {c:"青",py:"qīng",en:"blue-green, youth",cat:"nature",strokes:8,g:"u"},
+  {c:"苍",py:"cāng",en:"deep blue-green, vast",cat:"nature",strokes:7,g:"u"},
+  {c:"彩",py:"cǎi",en:"colorful, brilliant",cat:"beauty",strokes:11,g:"f"},
+  {c:"阳",py:"yáng",en:"sun, masculine light",cat:"light",strokes:6,g:"m"},
+  {c:"宙",py:"zhòu",en:"universe, time",cat:"celestial",strokes:8,g:"u"},
+  {c:"晶",py:"jīng",en:"crystal, sparkling",cat:"light",strokes:12,g:"u"},
+  {c:"灿",py:"càn",en:"bright, radiant",cat:"light",strokes:7,g:"u"},
+  {c:"炜",py:"wěi",en:"bright, brilliant",cat:"light",strokes:9,g:"m"},
+  {c:"耀",py:"yào",en:"shine, brilliant",cat:"light",strokes:20,g:"m"},
+  {c:"霖",py:"lín",en:"welcome, continuous rain",cat:"nature",strokes:16,g:"m"},
+  {c:"谦",py:"qiān",en:"modest, humble",cat:"virtue",strokes:12,g:"u"},
+  {c:"恒",py:"héng",en:"constancy, perseverance",cat:"virtue",strokes:9,g:"u"},
+  {c:"朴",py:"pǔ",en:"simple, unadorned",cat:"virtue",strokes:6,g:"u"},
+  {c:"真",py:"zhēn",en:"true, genuine",cat:"virtue",strokes:10,g:"u"},
+  {c:"孝",py:"xiào",en:"filial piety",cat:"virtue",strokes:7,g:"u"},
+  {c:"忠",py:"zhōng",en:"loyal, devoted",cat:"virtue",strokes:8,g:"m"},
+  {c:"怀",py:"huái",en:"to cherish, embrace",cat:"love",strokes:7,g:"u"},
+  {c:"聪",py:"cōng",en:"clever, sharp-witted",cat:"wisdom",strokes:15,g:"u"},
+  {c:"灵",py:"líng",en:"clever, spirited",cat:"wisdom",strokes:7,g:"f"},
+  {c:"毅",py:"yì",en:"resolute, determined",cat:"strength",strokes:15,g:"m"},
+  {c:"锋",py:"fēng",en:"cutting edge, sharp spirit",cat:"strength",strokes:12,g:"m"},
+  {c:"威",py:"wēi",en:"might, power, prestige",cat:"strength",strokes:9,g:"m"},
+  {c:"莹",py:"yíng",en:"glistening, jade sheen",cat:"purity",strokes:10,g:"f"},
+  {c:"艺",py:"yì",en:"art, skill",cat:"talent",strokes:4,g:"u"},
+  {c:"韵",py:"yùn",en:"rhyme, charm",cat:"talent",strokes:10,g:"f"},
+  {c:"畅",py:"chàng",en:"smooth, uninhibited",cat:"talent",strokes:8,g:"m"},
+  {c:"甄",py:"zhēn",en:"discerning, refined",cat:"talent",strokes:12,g:"u"},
+  {c:"学",py:"xué",en:"study, learning",cat:"talent",strokes:8,g:"u"},
+  {c:"书",py:"shū",en:"book, writing",cat:"talent",strokes:4,g:"u"},
+  {c:"墨",py:"mò",en:"ink, calligraphy",cat:"talent",strokes:15,g:"u"},
+  {c:"翰",py:"hàn",en:"writing brush, literary",cat:"talent",strokes:16,g:"m"},
+  {c:"兴",py:"xīng",en:"flourishing, prosperous",cat:"prosperity",strokes:6,g:"u"},
+  {c:"旺",py:"wàng",en:"prosperous, thriving",cat:"prosperity",strokes:8,g:"m"},
+  {c:"昌",py:"chāng",en:"prosperous, flourishing",cat:"prosperity",strokes:8,g:"m"},
+  {c:"盛",py:"shèng",en:"flourishing, abundant",cat:"prosperity",strokes:11,g:"m"},
+  {c:"甜",py:"tián",en:"sweet",cat:"joy",strokes:11,g:"f"},
+  {c:"笑",py:"xiào",en:"smile, laugh",cat:"joy",strokes:10,g:"u"},
+  {c:"吉",py:"jí",en:"auspicious, lucky",cat:"auspicious",strokes:6,g:"u"},
+  {c:"庆",py:"qìng",en:"celebrate, joyous",cat:"auspicious",strokes:6,g:"u"},
+  {c:"君",py:"jūn",en:"ruler, noble one",cat:"nobility",strokes:7,g:"u"},
+  {c:"尊",py:"zūn",en:"respect, honor",cat:"nobility",strokes:12,g:"u"},
+  {c:"倩",py:"qiàn",en:"pretty, charming",cat:"beauty",strokes:10,g:"f"},
+  {c:"姿",py:"zī",en:"posture, beauty",cat:"beauty",strokes:9,g:"f"},
+  {c:"媛",py:"yuán",en:"beautiful, refined lady",cat:"beauty",strokes:12,g:"f"},
+  {c:"恬",py:"tián",en:"calm, quiet, contented",cat:"peace",strokes:9,g:"f"}
+];
+
+// Traditional-form -> Simplified-form lookup key, so the dataset above (keyed on Simplified
+// characters) can still be found when a person types in Traditional Chinese. Meaning and
+// stroke-count data displayed always reflect the Simplified form (noted to the user in the UI).
+const TRAD_TO_SIMP = {
+  "愛":"爱","麗":"丽","傑":"杰","穎":"颖","強":"强","剛":"刚","堅":"坚","華":"华","誠":"诚","禮":"礼",
+  "財":"财","貴":"贵","祿":"禄","蓮":"莲","樂":"乐","歡":"欢","悅":"悦","潔":"洁","寶":"宝","蘭":"兰",
+  "雲":"云","寧":"宁","詩":"诗","軒":"轩","澤":"泽","偉":"伟","倫":"伦","靜":"静","壯":"壮","純":"纯",
+  "義":"义","貝":"贝","鳳":"凤","龍":"龙","風":"风","長":"长","陽":"阳","陰":"阴","雙":"双","國":"国",
+  "學":"学","覺":"觉","聲":"声","數":"数","畫":"画","畢":"毕","盡":"尽","與":"与","為":"为","發":"发",
+  "興":"兴","應":"应","懷":"怀","慶":"庆"
+};
+
+function normalizeZhChar(ch){
+  return TRAD_TO_SIMP[ch] || ch;
+}
+
+// small versatile pool used as a pairing partner when only a single source character is given
+const PAIRING_POOL = ["安","雅","悦","思","涵","宁","轩","泽","萱","博"];
+
+function suggestEnglishByTags(tags, excludeName, genderFilter, limit){
+  if(!tags || tags.length === 0) return [];
+  const scored = EN_NAMES
+    .filter(e => e.n.toLowerCase() !== (excludeName || "").toLowerCase())
+    .map(e => ({ ...e, score: e.tags.filter(t => tags.includes(t)).length }))
+    .filter(e => e.score > 0)
+    .filter(e => genderFilter === "any" || e.g === "u" || e.g === genderFilter);
+  scored.sort((a, b) => b.score - a.score || a.n.localeCompare(b.n));
+  return scored.slice(0, limit);
+}
+
+function altCharsFor(sourceData, genderFilter, excludeChars){
+  let tolerance = 2;
+  let matches = [];
+  while(tolerance <= 8 && matches.length < 3){
+    matches = ZH_CHARS.filter(z =>
+      z.c !== sourceData.c &&
+      !excludeChars.includes(z.c) &&
+      z.cat === sourceData.cat &&
+      Math.abs(z.strokes - sourceData.strokes) <= tolerance &&
+      (genderFilter === "any" || z.g === "u" || z.g === genderFilter)
+    );
+    tolerance += 2;
+  }
+  let crossCategory = false;
+  if(matches.length < 3){
+    // same category is too sparse on its own — widen to the whole set, ranked by how close
+    // the stroke count is, so we still return something useful instead of an empty result
+    const seen = new Set(matches.map(m => m.c));
+    const broad = ZH_CHARS
+      .filter(z => z.c !== sourceData.c && !excludeChars.includes(z.c) && !seen.has(z.c) &&
+        (genderFilter === "any" || z.g === "u" || z.g === genderFilter))
+      .sort((a, b) => Math.abs(a.strokes - sourceData.strokes) - Math.abs(b.strokes - sourceData.strokes));
+    for(const b of broad){
+      if(matches.length >= 8) break;
+      matches.push(b);
+      if(b.cat !== sourceData.cat) crossCategory = true;
+    }
+  }
+  matches.sort((a, b) => Math.abs(a.strokes - sourceData.strokes) - Math.abs(b.strokes - sourceData.strokes));
+  return { list: matches.slice(0, 8), crossCategory };
+}
+
+function buildCombinedZhNames(foundChars, genderFilter){
+  const withAlts = foundChars.map(fc => ({
+    source: fc.data,
+    options: [fc.data, ...altCharsFor(fc.data, genderFilter, foundChars.map(x => x.data.c)).list]
+  }));
+
+  let listA, listB, originalTotal;
+  if(withAlts.length === 2){
+    listA = withAlts[0].options; listB = withAlts[1].options;
+    originalTotal = withAlts[0].source.strokes + withAlts[1].source.strokes;
+  } else if(withAlts.length === 1){
+    listA = withAlts[0].options;
+    const partners = PAIRING_POOL.map(c => ZH_CHARS.find(z => z.c === c)).filter(Boolean);
+    listB = [...partners];
+    originalTotal = withAlts[0].source.strokes * 2;
+  } else {
+    return [];
+  }
+
+  const seen = new Set();
+  const originalCombo = withAlts.length === 2 ? withAlts[0].source.c + withAlts[1].source.c : null;
+  const combos = [];
+  for(const a of listA){
+    for(const b of listB){
+      if(a.c === b.c) continue;
+      const combo = a.c + b.c;
+      if(combo === originalCombo) continue;
+      if(seen.has(combo)) continue;
+      seen.add(combo);
+      const total = a.strokes + b.strokes;
+      combos.push({ text: combo, py: a.py + " " + b.py, meaning: a.en + " + " + b.en, strokes: total, diff: Math.abs(total - originalTotal) });
+    }
+  }
+  combos.sort((x, y) => x.diff - y.diff);
+  return combos.slice(0, 10);
+}
+
+const THEME_LIST = ["grace","wisdom","strength","virtue","nature","light","peace","joy","love","victory","faith","beauty","purity","nobility","celestial","prosperity","talent"];
+
+/* ---------- live lookups for characters outside our curated meaning set ----------
+   We can't hand-curate meaning + category for every Chinese character (that needs real
+   editorial judgment), but stroke count and pinyin are objective facts we can fetch from
+   open, CORS-enabled reference data — so a character we can't "decipher" the meaning of
+   still isn't a dead end. Tiered: a small per-character dataset first (fast), then a
+   comprehensive Unicode Unihan fallback for the rare characters that first tier misses. */
+
+async function fetchStrokesFromHanziWriter(ch){
+  try{
+    const res = await fetch("https://raw.githubusercontent.com/chanind/hanzi-writer-data/master/data/" + encodeURIComponent(ch) + ".json");
+    if(!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data.strokes) ? data.strokes.length : null;
+  }catch(e){ return null; }
+}
+
+let unihanStrokeMapPromise = null;
+function getUnihanStrokeMap(){
+  if(!unihanStrokeMapPromise){
+    unihanStrokeMapPromise = fetch("https://raw.githubusercontent.com/yawnoc/unihan-radical-strokes-readable/master/Unihan_IRGSources.txt")
+      .then(res => res.ok ? res.text() : "")
+      .then(text => {
+        const map = new Map();
+        const re = /^U\+([0-9A-Fa-f]+)\tkTotalStrokes\t(\d+)/gm;
+        let m;
+        while((m = re.exec(text))){
+          map.set(String.fromCodePoint(parseInt(m[1], 16)), parseInt(m[2], 10));
+        }
+        return map;
+      })
+      .catch(() => new Map());
+  }
+  return unihanStrokeMapPromise;
+}
+async function fetchStrokesFallback(ch){
+  const map = await getUnihanStrokeMap();
+  return map.has(ch) ? map.get(ch) : null;
+}
+async function fetchStrokeCountLive(ch){
+  const fast = await fetchStrokesFromHanziWriter(ch);
+  if(fast !== null) return fast;
+  return fetchStrokesFallback(ch);
+}
+
+let pinyinMapPromise = null;
+function getPinyinMap(){
+  if(!pinyinMapPromise){
+    pinyinMapPromise = fetch("https://raw.githubusercontent.com/mozillazg/pinyin-data/master/kMandarin.txt")
+      .then(res => res.ok ? res.text() : "")
+      .then(text => {
+        const map = new Map();
+        const re = /^U\+([0-9A-Fa-f]+):\s*([^\s#,]+)/gm;
+        let m;
+        while((m = re.exec(text))){
+          map.set(String.fromCodePoint(parseInt(m[1], 16)), m[2]);
+        }
+        return map;
+      })
+      .catch(() => new Map());
+  }
+  return pinyinMapPromise;
+}
+async function fetchPinyinLive(ch){
+  const map = await getPinyinMap();
+  return map.has(ch) ? map.get(ch) : null;
+}
+
+let cedictMapPromise = null;
+function getCedictMap(){
+  if(!cedictMapPromise){
+    cedictMapPromise = fetch("https://raw.githubusercontent.com/regisb/CC-CEDICT/master/cedict_ts.u8")
+      .then(res => res.ok ? res.text() : "")
+      .then(text => {
+        const map = new Map(); // simplified/traditional char -> { definition, isSurname }
+        const lines = text.split("\n");
+        for(const line of lines){
+          if(!line || line[0] === "#") continue;
+          const m = line.match(/^(\S+)\s+(\S+)\s+\[([^\]]+)\]\s+\/(.+)\/\s*\r?$/);
+          if(!m) continue;
+          const trad = m[1], simp = m[2], defsRaw = m[4];
+          if(Array.from(simp).length !== 1) continue; // only single-character entries
+          const isSurname = /^surname\b/i.test(defsRaw);
+          const defs = defsRaw.split("/").filter(Boolean).slice(0, 2).join("; ");
+          const entry = { definition: defs, isSurname };
+          for(const key of new Set([simp, trad])){
+            const existing = map.get(key);
+            if(!existing || (existing.isSurname && !isSurname)) map.set(key, entry);
+          }
+        }
+        return map;
+      })
+      .catch(() => new Map());
+  }
+  return cedictMapPromise;
+}
+async function fetchDefinitionLive(ch){
+  const map = await getCedictMap();
+  return map.has(ch) ? map.get(ch).definition : null;
+}
+
+/* ---------- UI ---------- */
+
+function MeaningPanel(){
+  const [sampleName, setSampleName] = useState("");
+  const [analyzed, setAnalyzed] = useState(false);
+  const [scriptType, setScriptType] = useState(null);
+  const [enMatch, setEnMatch] = useState(null);
+  const [selectedTags, setSelectedTags] = useState([]);
+  const [zhChars, setZhChars] = useState([]);
+  const [genderFilter, setGenderFilter] = useState("any");
+  const [enResults, setEnResults] = useState([]);
+  const [zhResults, setZhResults] = useState(null);
+  const [error, setError] = useState(null);
+  const zhGenRef = useRef(0);
+
+  const toggleTag = (t) => {
+    setSelectedTags(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
+  };
+
+  const enrichUnknownChars = async (parsed, gen) => {
+    const unknown = parsed.filter(p => p.pendingLookup);
+    for(const item of unknown){
+      const [strokes, pinyin, definition] = await Promise.all([
+        fetchStrokeCountLive(item.normalized),
+        fetchPinyinLive(item.normalized),
+        fetchDefinitionLive(item.normalized)
+      ]);
+      if(zhGenRef.current !== gen) return; // a newer search superseded this one
+      setZhChars(prev => prev.map(p =>
+        p.char === item.char ? { ...p, liveStrokes: strokes, livePinyin: pinyin, liveDefinition: definition, pendingLookup: false } : p
+      ));
+    }
+  };
+
+  const analyze = (valOverride) => {
+    const val = (valOverride !== undefined ? valOverride : sampleName).trim();
+    if(!val){ setError("Enter a name first."); return; }
+    setError(null);
+    setEnResults([]); setZhResults(null);
+    if(isCJK(val)){
+      zhGenRef.current += 1;
+      const myGen = zhGenRef.current;
+      const chars = Array.from(val).filter(ch => /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/.test(ch));
+      const parsed = chars.map(ch => {
+        const norm = normalizeZhChar(ch);
+        const data = ZH_CHARS.find(d => d.c === norm) || null;
+        return { char: ch, normalized: norm, data, liveStrokes: null, livePinyin: null, pendingLookup: !data };
+      });
+      setZhChars(parsed);
+      setEnMatch(null);
+      setScriptType("zh");
+      if(parsed.some(p => p.pendingLookup)) enrichUnknownChars(parsed, myGen);
+    } else {
+      const found = EN_NAMES.find(nm => nm.n.toLowerCase() === val.toLowerCase()) || null;
+      setEnMatch(found);
+      setSelectedTags(found ? found.tags.slice() : []);
+      setZhChars([]);
+      setScriptType("en");
+    }
+    setAnalyzed(true);
+  };
+
+  const findEnglishNames = () => {
+    setEnResults(suggestEnglishByTags(selectedTags, sampleName.trim(), genderFilter, 16));
+  };
+
+  const findChineseAlternates = () => {
+    const found = zhChars.filter(z => z.data);
+    const perChar = found.map(f => {
+      const r = altCharsFor(f.data, genderFilter, found.map(x => x.data.c));
+      return { source: f.data, alts: r.list, crossCategory: r.crossCategory };
+    });
+    const combined = buildCombinedZhNames(found, genderFilter);
+    setZhResults({ perChar, combined });
+  };
+
+  const tryExample = (name) => {
+    setSampleName(name);
+    analyze(name);
+  };
+
+  return h("div", null,
+    h("div", { className: "meaning-input-row" },
+      h("input", {
+        type: "text", placeholder: "e.g. Grace, Ethan, or 美丽",
+        value: sampleName, onChange: e => setSampleName(e.target.value)
+      }),
+      h("button", { className: "btn btn-primary", onClick: () => analyze() }, "Analyze")
+    ),
+    h("div", { className: "example-links" },
+      h("button", { onClick: () => tryExample("Grace") }, "Try: Grace"),
+      h("button", { onClick: () => tryExample("美丽") }, "Try: 美丽 (měilì)"),
+      h("button", { onClick: () => tryExample("傑倫") }, "Try: 傑倫 (Traditional)"),
+      h("button", { onClick: () => tryExample("斌靖") }, "Try: 斌靖 (live lookup)")
+    ),
+
+    error ? h("div", { className: "tool-status error" }, error) : null,
+
+    (analyzed && scriptType === "en") ? h("div", null,
+      enMatch ? h("div", { className: "info-box" },
+        "Found “", enMatch.n, "” — meaning: ", h("strong", null, enMatch.meaning),
+        " (themes: ", enMatch.tags.join(", "), ")"
+      ) : h("div", { className: "info-box warn" },
+        "We don't have “", sampleName.trim(), "” in our meaning index yet — pick the themes below that best capture the feeling you want instead."
+      ),
+      h("div", { className: "theme-chips" },
+        THEME_LIST.map(t => h("button", {
+          key: t,
+          className: "theme-chip" + (selectedTags.includes(t) ? " on" : ""),
+          onClick: () => toggleTag(t)
+        }, t))
+      ),
+      h("div", { className: "controls-grid", style: { maxWidth: "220px" } },
+        h("div", { className: "ctl" },
+          h("label", null, "Gender"),
+          h("select", { value: genderFilter, onChange: e => setGenderFilter(e.target.value) },
+            h("option", { value: "any" }, "Any"),
+            h("option", { value: "f" }, "Girl names"),
+            h("option", { value: "m" }, "Boy names")
+          )
+        )
+      ),
+      h("div", { className: "actions" },
+        h("button", { className: "btn btn-primary", onClick: findEnglishNames, disabled: selectedTags.length === 0 }, "Find Names")
+      ),
+      enResults.length > 0 ? h("div", { className: "results-grid", style: { marginTop: "18px" } },
+        enResults.map((r, idx) => h("div", { className: "tag", key: idx },
+          h("div", { className: "hole" }),
+          h("div", { className: "name mono" }, r.n),
+          h("div", { className: "ticket-note", style: { marginTop: "6px" } }, r.meaning)
+        ))
+      ) : null
+    ) : null,
+
+    (analyzed && scriptType === "zh") ? h("div", null,
+      h("div", { className: "char-cards" },
+        zhChars.map((z, idx) => z.data ? h("div", { className: "char-card", key: idx },
+          h("div", { className: "glyph" }, z.char),
+          z.char !== z.data.c ? h("div", { className: "py" }, "(simplified: ", z.data.c, ")") : null,
+          h("div", { className: "py" }, z.data.py),
+          h("div", { className: "meaning" }, z.data.en),
+          h("div", { className: "strokes" }, z.data.strokes, " strokes · ", z.data.cat)
+        ) : h("div", { className: "char-card missing", key: idx },
+          h("div", { className: "glyph" }, z.char),
+          h("div", { className: "py" }, z.pendingLookup ? "looking up…" : (z.livePinyin || "pinyin unavailable")),
+          h("div", { className: "meaning" }, z.pendingLookup ? "…" : (z.liveDefinition || "meaning unavailable")),
+          !z.pendingLookup && z.liveDefinition ? h("div", { className: "ticket-note", style: { fontSize: "0.68rem" } }, "(dictionary lookup, not our meaning-category set)") : null,
+          h("div", { className: "strokes" }, z.pendingLookup ? "…" : (z.liveStrokes != null ? z.liveStrokes + " strokes" : "stroke count unavailable"))
+        ))
+      ),
+      zhChars.some(z => z.pendingLookup) ? h("div", { className: "tool-status" }, "Looking up stroke count and pinyin for uncommon characters — this can take a few seconds the first time.") : null,
+      zhChars.some(z => z.data) ? h("div", null,
+        h("div", { className: "controls-grid", style: { maxWidth: "220px" } },
+          h("div", { className: "ctl" },
+            h("label", null, "Lean"),
+            h("select", { value: genderFilter, onChange: e => setGenderFilter(e.target.value) },
+              h("option", { value: "any" }, "Any"),
+              h("option", { value: "f" }, "Girl-leaning"),
+              h("option", { value: "m" }, "Boy-leaning")
+            )
+          )
+        ),
+        h("div", { className: "actions" },
+          h("button", { className: "btn btn-primary", onClick: findChineseAlternates }, "Find Similar Characters")
+        )
+      ) : h("div", { className: "tool-status" }, "None of these characters have a categorized meaning in our reference set, so we can't suggest similar-meaning alternates yet — but stroke count, pinyin, and a dictionary definition are shown above where available."),
+
+      zhResults ? h("div", { style: { marginTop: "18px" } },
+        zhResults.perChar.map((pc, idx) => h("div", { className: "alt-group", key: idx },
+          h("h4", null, "Similar to ", pc.source.c, " (", pc.source.py, ", ", pc.source.en, ", ", pc.source.strokes, " strokes)"),
+          pc.crossCategory && pc.alts.length > 0 ? h("p", { style: { fontSize: "0.8rem", color: "var(--ink-soft)", marginTop: "-4px", marginBottom: "8px" } }, "Our reference set is thin in this meaning category, so these are ranked by closest stroke count instead — meanings vary more here.") : null,
+          pc.alts.length > 0 ? h("div", { className: "alt-chips" },
+            pc.alts.map((a, i2) => h("div", { className: "alt-chip", key: i2 },
+              h("div", { className: "g" }, a.c),
+              h("div", { className: "d" }, a.py, " · ", a.en, " · ", a.strokes, " strokes")
+            ))
+          ) : h("div", { className: "tool-status" }, "No close matches in our reference set for this character.")
+        )),
+        zhResults.combined.length > 0 ? h("div", { className: "alt-group" },
+          h("h4", null, "Suggested combined names"),
+          h("div", { className: "results-grid" },
+            zhResults.combined.map((c, idx2) => h("div", { className: "tag", key: idx2 },
+              h("div", { className: "hole" }),
+              h("div", { className: "name mono" }, c.text),
+              h("div", { className: "ticket-note", style: { marginTop: "6px" } }, c.py, " · ", c.strokes, " strokes"),
+              h("div", { className: "ticket-note" }, c.meaning)
+            ))
+          )
+        ) : null
+      ) : null
+    ) : null,
+
+    h("div", { className: "info-box warn", style: { marginTop: "20px" } },
+      h("strong", null, "About this mode: "),
+      "Similar-meaning suggestions are only possible for characters in a curated category set (about 185 Chinese characters and 90 English names) — that categorization takes editorial judgment a raw dictionary can't provide. For any other character, stroke count comes live from Unicode character data, pinyin from a broad reference table, and a plain-language definition from the open CC-CEDICT dictionary — so a character can still be understood even when it can't generate alternates. Both Simplified and Traditional characters are recognized. Stroke counts may still differ slightly from the specific counting convention used in formal naming numerology (五格姓名学), which also weighs more than meaning or strokes alone. Please confirm any name with a native speaker, family elder, or naming professional before using it formally."
+    )
+  );
+}
+
+function App(){
+  const [mode, setMode] = useState("blend");
+  const [names, setNames] = useState(["", ""]);
+  const [caseStyle, setCaseStyle] = useState("original");
+  const [separator, setSeparator] = useState("");
+  const [customSep, setCustomSep] = useState("");
+  const [minLen, setMinLen] = useState(3);
+  const [maxLen, setMaxLen] = useState(14);
+  const [numResults, setNumResults] = useState(12);
+  const [phonetic, setPhonetic] = useState(true);
+  const [initialsMode, setInitialsMode] = useState(false);
+  const [contentFilter, setContentFilter] = useState(true);
+  const [pool, setPool] = useState([]);
+  const [shown, setShown] = useState([]);
+  const [error, setError] = useState(null);
+  const [copiedIdx, setCopiedIdx] = useState(null);
+
+  const updateName = (i, val) => {
+    const next = [...names]; next[i] = val; setNames(next);
+  };
+  const addName = () => { if(names.length < 5) setNames([...names, ""]); };
+  const removeName = (i) => { if(names.length > 2) setNames(names.filter((_, idx) => idx !== i)); };
+
+  const effectiveSeparator = separator === "custom" ? customSep : separator;
+
+  const buildOpts = () => ({
+    caseStyle, separator: effectiveSeparator,
+    minLen: Number(minLen) || 1, maxLen: Number(maxLen) || 20,
+    phonetic, initialsMode: initialsMode && names.length > 2, contentFilter, easy: true
+  });
+
+  const pickShown = (fullPool, n, offset) => {
+    if(fullPool.length <= n) return fullPool;
+    const rotated = [...fullPool.slice(offset % fullPool.length), ...fullPool.slice(0, offset % fullPool.length)];
+    return rotated.slice(0, n);
+  };
+
+  const generate = useCallback(() => {
+    const cleaned = names.map(n => n.trim()).filter(Boolean);
+    if(cleaned.length < 2){
+      setError("Enter at least two names or words to combine.");
+      setPool([]); setShown([]);
+      return;
+    }
+    setError(null);
+    const opts = buildOpts();
+    const result = combineAll(cleaned, opts);
+    if(result.length === 0){
+      setError("No combinations survived your filters — try widening the length range or turning off some filters.");
+      setPool([]); setShown([]);
+      return;
+    }
+    setPool(result);
+    setShown(pickShown(result, Number(numResults) || 12, 0));
+  }, [names, caseStyle, effectiveSeparator, minLen, maxLen, numResults, phonetic, initialsMode, contentFilter]);
+
+  const reshuffle = () => {
+    if(pool.length === 0) return;
+    const offset = Math.floor(Math.random() * pool.length);
+    setShown(pickShown(pool, Number(numResults) || 12, offset));
+  };
+
+  const copyOne = (text, idx) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedIdx(idx);
+      setTimeout(() => setCopiedIdx(null), 1400);
+    }).catch(() => {});
+  };
+
+  const exportAll = () => {
+    const opts = buildOpts();
+    const lines = shown.map(c => formatCandidate(c, opts));
+    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const aTag = document.createElement("a");
+    aTag.href = url; aTag.download = "combined-names.txt";
+    document.body.appendChild(aTag); aTag.click(); document.body.removeChild(aTag);
+    URL.revokeObjectURL(url);
+  };
+
+  const tryExample = () => {
+    setNames(["Emma", "Liam"]);
+    setTimeout(() => {
+      const opts = buildOpts();
+      const result = combineAll(["Emma", "Liam"], opts);
+      setPool(result);
+      setShown(pickShown(result, Number(numResults) || 12, 0));
+      setError(null);
+    }, 0);
+  };
+
+  const opts = buildOpts();
+
+  return h("div", { className: "tool-card" },
+
+    h("div", { className: "mode-tabs" },
+      h("button", { className: "mode-tab" + (mode === "blend" ? " active" : ""), onClick: () => setMode("blend") }, "🔗 Blend Names"),
+      h("button", { className: "mode-tab" + (mode === "meaning" ? " active" : ""), onClick: () => setMode("meaning") }, "🍼 Match by Meaning")
+    ),
+
+    mode === "meaning" ? h(MeaningPanel) : h("div", null,
+
+    h("div", { className: "field-row" },
+      names.map((n, i) => h("div", { className: "name-field", key: i },
+        h("input", {
+          type: "text", placeholder: i === 0 ? "First name or word" : i === 1 ? "Second name or word" : "Another word",
+          value: n, onChange: e => updateName(i, e.target.value)
+        }),
+        names.length > 2 ? h("button", { className: "rm", onClick: () => removeName(i), "aria-label": "Remove" }, "×") : null
+      ))
+    ),
+    h("button", { className: "add-name", onClick: addName, disabled: names.length >= 5 }, "+ Add another name"),
+
+    h("div", { className: "controls-grid", style: { marginTop: "18px" } },
+      h("div", { className: "ctl" },
+        h("label", null, "Case style"),
+        h("select", { value: caseStyle, onChange: e => setCaseStyle(e.target.value) },
+          h("option", { value: "original" }, "Original"),
+          h("option", { value: "upper" }, "UPPERCASE"),
+          h("option", { value: "lower" }, "lowercase")
+        )
+      ),
+      h("div", { className: "ctl" },
+        h("label", null, "Separator"),
+        h("select", { value: separator, onChange: e => setSeparator(e.target.value) },
+          h("option", { value: "" }, "None"),
+          h("option", { value: "-" }, "Hyphen ( - )"),
+          h("option", { value: "_" }, "Underscore ( _ )"),
+          h("option", { value: "custom" }, "Custom…")
+        )
+      ),
+      separator === "custom" ? h("div", { className: "ctl" },
+        h("label", null, "Custom separator"),
+        h("input", { type: "text", maxLength: 3, value: customSep, onChange: e => setCustomSep(e.target.value) })
+      ) : null,
+      h("div", { className: "ctl" },
+        h("label", null, "Min length"),
+        h("input", { type: "number", min: 2, max: 30, value: minLen, onChange: e => setMinLen(e.target.value) })
+      ),
+      h("div", { className: "ctl" },
+        h("label", null, "Max length"),
+        h("input", { type: "number", min: 2, max: 40, value: maxLen, onChange: e => setMaxLen(e.target.value) })
+      ),
+      h("div", { className: "ctl" },
+        h("label", null, "Results to show"),
+        h("input", { type: "number", min: 4, max: 30, value: numResults, onChange: e => setNumResults(e.target.value) })
+      )
+    ),
+
+    h("div", { className: "toggles" },
+      h("label", { className: "toggle" + (phonetic ? " on" : "") },
+        h("input", { type: "checkbox", checked: phonetic, onChange: e => setPhonetic(e.target.checked) }), "Phonetic blending"
+      ),
+      h("label", { className: "toggle" + (initialsMode ? " on" : ""), style: names.length <= 2 ? { opacity: 0.5 } : {} },
+        h("input", { type: "checkbox", checked: initialsMode, disabled: names.length <= 2, onChange: e => setInitialsMode(e.target.checked) }),
+        "Initials for extra names"
+      ),
+      h("label", { className: "toggle" + (contentFilter ? " on" : "") },
+        h("input", { type: "checkbox", checked: contentFilter, onChange: e => setContentFilter(e.target.checked) }), "Keep it clean"
+      )
+    ),
+
+    h("div", { className: "actions" },
+      h("button", { className: "btn btn-primary", onClick: generate }, "Combine"),
+      h("button", { className: "btn btn-secondary", onClick: reshuffle, disabled: pool.length === 0 }, "Re-shuffle"),
+      h("button", { className: "btn btn-secondary", onClick: exportAll, disabled: shown.length === 0 }, "Export .txt"),
+      h("button", { className: "btn-text", onClick: tryExample }, "Try example: Emma + Liam")
+    ),
+
+    error ? h("div", { className: "tool-status error" }, error) : null,
+    (!error && shown.length === 0) ? h("div", { className: "tool-status" }, "Enter at least two names above and click Combine to see results.") : null,
+
+    shown.length > 0 ? h("div", { className: "results-grid" },
+      shown.map((c, idx) => h("div", { className: "tag", key: idx },
+        h("div", { className: "hole" }),
+        h("div", { className: "technique" }, c.technique),
+        h("div", { className: "name mono" }, formatCandidate(c, opts)),
+        h("button", {
+          className: "copy" + (copiedIdx === idx ? " copied" : ""),
+          onClick: () => copyOne(formatCandidate(c, opts), idx)
+        }, copiedIdx === idx ? "Copied!" : "Copy")
+      ))
+    ) : null
+    )
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("combiner-root")).render(h(App));
+</script>
+</body>
+</html>

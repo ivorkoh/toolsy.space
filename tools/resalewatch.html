@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>ResaleWatch — Singapore Property Transactions</title>
+<meta name="description" content="Research real HDB and private property transactions in Singapore, live from data.gov.sg and URA — filter and sort to surface the transactions that matter." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+
+<style>
+  :root{
+    --blue-deep:#0F2A45;
+    --blue-mid:#153A5C;
+    --blue-card:#1B4670;
+    --ink:#EAF3FB;
+    --ink-soft:#9FC1DE;
+    --amber:#F0A868;
+    --amber-deep:#C9863F;
+    --cyan:#6FD8E0;
+    --line:rgba(159,193,222,0.25);
+    --radius:12px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      linear-gradient(var(--blue-deep), var(--blue-deep)) ,
+      repeating-linear-gradient(0deg, rgba(159,193,222,0.06) 0, rgba(159,193,222,0.06) 1px, transparent 1px, transparent 32px),
+      repeating-linear-gradient(90deg, rgba(159,193,222,0.06) 0, rgba(159,193,222,0.06) 1px, transparent 1px, transparent 32px);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    line-height:1.55;
+    min-height:100vh;
+  }
+  .display{font-family:'Space Grotesk',sans-serif;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 clamp(16px,4vw,40px);}
+  a{color:var(--cyan);}
+
+  .topbar{padding:16px 0;}
+  .backlink{
+    display:inline-flex;align-items:center;gap:6px;text-decoration:none;
+    color:var(--cyan);font-weight:600;font-size:0.85rem;
+  }
+
+  .hero{padding:14px 0 26px;}
+  .hero .tag{
+    font-family:'IBM Plex Mono',monospace;font-size:0.72rem;letter-spacing:0.12em;
+    color:var(--amber);text-transform:uppercase;margin-bottom:8px;
+  }
+  .hero h1{
+    font-size:clamp(1.9rem,4.6vw,2.8rem);margin:0 0 8px;font-weight:700;
+  }
+  .hero p{color:var(--ink-soft);max-width:64ch;margin:0;font-size:clamp(0.95rem,1.1vw,1.02rem);}
+
+  .dim-divider{
+    display:flex;align-items:center;gap:8px;margin:22px 0;
+    color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;font-size:0.68rem;letter-spacing:0.08em;
+  }
+  .dim-divider::before, .dim-divider::after{content:"";flex:1;height:1px;background:var(--line);}
+
+  .panel{
+    background:var(--blue-card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:18px 20px;margin-bottom:22px;
+  }
+  .filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px;}
+  .ctl label{
+    display:block;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;
+    color:var(--ink-soft);margin-bottom:6px;font-family:'IBM Plex Mono',monospace;
+  }
+  .ctl select, .ctl input{
+    width:100%;padding:9px 10px;border-radius:8px;border:1.5px solid var(--line);
+    font-family:'Inter',sans-serif;font-size:0.9rem;background:var(--blue-mid);color:var(--ink);
+  }
+  .ctl select option{color:#000;}
+
+  .sort-toggle{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+  .sort-btn{
+    padding:9px 16px;border-radius:999px;border:1.5px solid var(--line);
+    background:var(--blue-mid);color:var(--ink-soft);font-size:0.85rem;font-weight:600;cursor:pointer;
+    font-family:'Inter',sans-serif;
+  }
+  .sort-btn.active{background:var(--amber);border-color:var(--amber);color:#3A2308;}
+
+  .actions{display:flex;flex-wrap:wrap;gap:10px;}
+  button.btn{
+    font-family:'Inter',sans-serif;font-weight:700;border:none;border-radius:9px;
+    padding:11px 20px;cursor:pointer;font-size:0.92rem;
+  }
+  .btn-primary{background:var(--amber);color:#3A2308;}
+  .btn-primary:hover{background:var(--amber-deep);}
+  .btn-primary:disabled{background:#5b5347;color:#a89f8f;cursor:not-allowed;}
+  .btn-secondary{background:var(--blue-mid);border:1.5px solid var(--line);color:var(--ink);}
+  .btn-secondary:hover{border-color:var(--cyan);}
+  .btn-secondary:disabled{opacity:0.5;cursor:not-allowed;}
+
+  .stat-bar{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:22px;
+  }
+  .stat{
+    background:var(--blue-card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px 16px;
+  }
+  .stat .label{font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;margin-bottom:6px;}
+  .stat .value{font-family:'IBM Plex Mono',monospace;font-size:1.3rem;font-weight:700;color:var(--ink);}
+
+  .status-box{
+    background:var(--blue-card);border:1px dashed var(--line);border-radius:var(--radius);
+    padding:16px 18px;color:var(--ink-soft);font-size:0.9rem;margin-bottom:20px;
+  }
+  .status-box.error{border-color:#E08A7A;color:#F0B6AA;}
+
+  .table-wrap{
+    background:var(--blue-card);border:1px solid var(--line);border-radius:var(--radius);
+    overflow-x:auto;margin-bottom:16px;
+  }
+  table.tx-table{width:100%;border-collapse:collapse;min-width:820px;}
+  .tx-table thead th{
+    text-align:left;font-family:'IBM Plex Mono',monospace;font-size:0.66rem;
+    text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-soft);
+    padding:12px 14px;border-bottom:2px solid var(--line);white-space:nowrap;
+  }
+  .tx-table thead th.num{text-align:right;}
+  .tx-table tbody tr{border-bottom:1px solid var(--line);}
+  .tx-table tbody tr:last-child{border-bottom:none;}
+  .tx-table tbody tr:hover{background:rgba(255,255,255,0.03);}
+  .tx-table td{padding:12px 14px;vertical-align:top;font-size:0.88rem;white-space:nowrap;}
+  .tx-table td.num{text-align:right;}
+  .tx-table td.addr{white-space:normal;min-width:180px;}
+
+  .price-cell{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:0.98rem;}
+  .badge-million{
+    display:inline-block;margin-left:6px;padding:2px 7px;border-radius:999px;
+    background:var(--amber);color:#3A2308;font-size:0.62rem;font-weight:700;
+    font-family:'IBM Plex Mono',monospace;letter-spacing:0.03em;vertical-align:middle;
+  }
+
+  .load-more-row{display:flex;justify-content:center;margin-bottom:30px;}
+
+  .disclaimer{
+    font-size:0.78rem;color:var(--ink-soft);line-height:1.6;
+    border-top:1px solid var(--line);padding:20px 0 40px;
+  }
+  .disclaimer strong{color:var(--ink);}
+</style>
+</head>
+<body>
+
+<div class="wrap topbar">
+  <a class="backlink" href="../index.html">← Utility Directory</a>
+</div>
+
+<div class="wrap hero">
+  <div class="tag display">// ResaleWatch</div>
+  <h1 class="display">Singapore property transactions, live.</h1>
+  <p>Real transaction data for both HDB resale flats (via data.gov.sg) and private residential property (via URA) — filter and sort to surface the transactions that matter. Switch between the two below.</p>
+</div>
+
+<div class="wrap">
+  <div id="root"></div>
+</div>
+
+<script>
+const { useState, useEffect, useCallback } = React;
+const h = React.createElement;
+
+const DATASET_ID = "d_8b84c4ee58e3cfc0ece0d773c8ca6abc"; // HDB Resale flat prices (Jan 2017 onwards)
+const PAGE_SIZE = 50;
+
+const TOWNS = [
+  "ANG MO KIO","BEDOK","BISHAN","BUKIT BATOK","BUKIT MERAH","BUKIT PANJANG","BUKIT TIMAH",
+  "CENTRAL AREA","CHOA CHU KANG","CLEMENTI","GEYLANG","HOUGANG","JURONG EAST","JURONG WEST",
+  "KALLANG/WHAMPOA","MARINE PARADE","PASIR RIS","PUNGGOL","QUEENSTOWN","SEMBAWANG","SENGKANG",
+  "SERANGOON","TAMPINES","TOA PAYOH","WOODLANDS","YISHUN"
+];
+const FLAT_TYPES = ["1 ROOM","2 ROOM","3 ROOM","4 ROOM","5 ROOM","EXECUTIVE","MULTI-GENERATION"];
+
+async function fetchJsonResilient(url){
+  let res;
+  try{
+    res = await fetch(url);
+  }catch(networkErr){
+    try{
+      const proxied = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
+      const res2 = await fetch(proxied);
+      if(!res2.ok) throw new Error("HTTP " + res2.status);
+      return await res2.json();
+    }catch(proxyErr){
+      throw new Error(
+        "Couldn't reach data.gov.sg directly (" + networkErr.message + "), and the fallback proxy also failed (" + proxyErr.message + ")."
+      );
+    }
+  }
+  if(!res.ok){
+    const body = await res.text().catch(() => "");
+    throw new Error("HTTP " + res.status + (body ? " — " + body.slice(0, 220) : ""));
+  }
+  return await res.json();
+}
+
+function buildSort(sortMode){
+  return sortMode === "price" ? "resale_price desc" : "month desc,resale_price desc";
+}
+
+async function fetchTransactions({ town, flatType, month, sortMode, limit, offset }){
+  const filters = {};
+  if(town) filters.town = town;
+  if(flatType) filters.flat_type = flatType;
+  if(month) filters.month = month;
+
+  const params = new URLSearchParams();
+  params.set("resource_id", DATASET_ID);
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
+  params.set("sort", buildSort(sortMode));
+  if(Object.keys(filters).length > 0) params.set("filters", JSON.stringify(filters));
+
+  const url = "https://data.gov.sg/api/action/datastore_search?" + params.toString();
+  const data = await fetchJsonResilient(url);
+  if(!data.success){
+    throw new Error((data.error && (data.error.message || JSON.stringify(data.error))) || "data.gov.sg returned an error.");
+  }
+  return data.result;
+}
+
+function sqmToPsf(sqm){
+  const n = parseFloat(sqm);
+  return isNaN(n) || n === 0 ? null : n * 10.7639;
+}
+
+function formatMoney(n){
+  return "$" + Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+}
+
+function median(nums){
+  if(nums.length === 0) return null;
+  const s = [...nums].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
+function HdbPanel(){
+  const [town, setTown] = useState("");
+  const [flatType, setFlatType] = useState("");
+  const [month, setMonth] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [sortMode, setSortMode] = useState("price"); // "price" | "recent"
+
+  const [records, setRecords] = useState([]);
+  const [total, setTotal] = useState(null);
+  const [offset, setOffset] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+
+  const runSearch = useCallback(async () => {
+    setLoading(true); setError(null);
+    try{
+      const result = await fetchTransactions({ town, flatType, month, sortMode, limit: PAGE_SIZE, offset: 0 });
+      setRecords(result.records || []);
+      setTotal(typeof result.total === "number" ? result.total : null);
+      setOffset((result.records || []).length);
+      setHasMore((result.records || []).length === PAGE_SIZE);
+    }catch(e){
+      setError(e.message);
+      setRecords([]); setTotal(null); setHasMore(false);
+    }finally{
+      setLoading(false);
+    }
+  }, [town, flatType, month, sortMode]);
+
+  const loadMore = async () => {
+    setLoadingMore(true);
+    try{
+      const result = await fetchTransactions({ town, flatType, month, sortMode, limit: PAGE_SIZE, offset });
+      const newRecords = result.records || [];
+      setRecords(prev => [...prev, ...newRecords]);
+      setOffset(prev => prev + newRecords.length);
+      setHasMore(newRecords.length === PAGE_SIZE);
+    }catch(e){
+      setError(e.message);
+    }finally{
+      setLoadingMore(false);
+    }
+  };
+
+  useEffect(() => { runSearch(); }, []); // eslint-disable-line
+
+  const minPriceNum = parseFloat(minPrice);
+  const filteredRecords = records.filter(r => isNaN(minPriceNum) || Number(r.resale_price) >= minPriceNum);
+
+  const prices = filteredRecords.map(r => Number(r.resale_price)).filter(n => !isNaN(n));
+  const medianPrice = median(prices);
+  const avgPrice = prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : null;
+  const maxPrice = prices.length ? Math.max(...prices) : null;
+
+  return h("div", null,
+
+    h("div", { className: "panel" },
+      h("div", { className: "filter-grid" },
+        h("div", { className: "ctl" },
+          h("label", null, "Town"),
+          h("select", { value: town, onChange: e => setTown(e.target.value) },
+            h("option", { value: "" }, "Any town"),
+            TOWNS.map(t => h("option", { key: t, value: t }, t))
+          )
+        ),
+        h("div", { className: "ctl" },
+          h("label", null, "Flat type"),
+          h("select", { value: flatType, onChange: e => setFlatType(e.target.value) },
+            h("option", { value: "" }, "Any type"),
+            FLAT_TYPES.map(t => h("option", { key: t, value: t }, t))
+          )
+        ),
+        h("div", { className: "ctl" },
+          h("label", null, "Month (exact)"),
+          h("input", { type: "month", min: "2017-01", value: month, onChange: e => setMonth(e.target.value) })
+        ),
+        h("div", { className: "ctl" },
+          h("label", null, "Min price (loaded rows)"),
+          h("input", { type: "number", placeholder: "e.g. 800000", value: minPrice, onChange: e => setMinPrice(e.target.value) })
+        )
+      ),
+
+      h("div", { className: "sort-toggle" },
+        h("button", { className: "sort-btn" + (sortMode === "price" ? " active" : ""), onClick: () => setSortMode("price") }, "🏆 Highest Price"),
+        h("button", { className: "sort-btn" + (sortMode === "recent" ? " active" : ""), onClick: () => setSortMode("recent") }, "🕐 Most Recent")
+      ),
+
+      h("div", { className: "actions" },
+        h("button", { className: "btn btn-primary", onClick: runSearch, disabled: loading }, loading ? "Searching…" : "Search"),
+        h("button", { className: "btn btn-secondary", onClick: () => { setTown(""); setFlatType(""); setMonth(""); setMinPrice(""); } }, "Clear filters")
+      )
+    ),
+
+    error ? h("div", { className: "status-box error" }, error) : null,
+
+    (!loading && !error && total !== null) ? h("div", { className: "stat-bar" },
+      h("div", { className: "stat" }, h("div", { className: "label" }, "Matching in dataset"), h("div", { className: "value mono" }, total.toLocaleString())),
+      h("div", { className: "stat" }, h("div", { className: "label" }, "Loaded / shown"), h("div", { className: "value mono" }, filteredRecords.length.toLocaleString())),
+      h("div", { className: "stat" }, h("div", { className: "label" }, "Median (loaded)"), h("div", { className: "value mono" }, medianPrice ? formatMoney(medianPrice) : "—")),
+      h("div", { className: "stat" }, h("div", { className: "label" }, "Highest (loaded)"), h("div", { className: "value mono" }, maxPrice ? formatMoney(maxPrice) : "—"))
+    ) : null,
+
+    loading ? h("div", { className: "status-box" }, "Fetching live transactions from data.gov.sg…") : null,
+
+    (!loading && !error && filteredRecords.length > 0) ? h("div", { className: "table-wrap" },
+      h("table", { className: "tx-table" },
+        h("thead", null,
+          h("tr", null,
+            h("th", null, "Month"), h("th", null, "Town"), h("th", null, "Flat Type"),
+            h("th", null, "Address"), h("th", null, "Storey"), h("th", { className: "num" }, "Floor (sqm)"),
+            h("th", null, "Model"), h("th", null, "Remaining Lease"), h("th", { className: "num" }, "$PSF"),
+            h("th", { className: "num" }, "Resale Price")
+          )
+        ),
+        h("tbody", null,
+          filteredRecords.map((r, idx) => {
+            const price = Number(r.resale_price);
+            const psf = sqmToPsf(r.floor_area_sqm);
+            const isMillion = price >= 1000000;
+            return h("tr", { key: r._id || idx },
+              h("td", { className: "mono" }, r.month),
+              h("td", null, r.town),
+              h("td", null, r.flat_type),
+              h("td", { className: "addr" }, "Blk ", r.block, " ", r.street_name),
+              h("td", { className: "mono" }, r.storey_range),
+              h("td", { className: "num mono" }, r.floor_area_sqm),
+              h("td", null, r.flat_model),
+              h("td", null, r.remaining_lease),
+              h("td", { className: "num mono" }, psf ? "$" + psf.toFixed(0) : "—"),
+              h("td", { className: "num price-cell" }, formatMoney(price), isMillion ? h("span", { className: "badge-million" }, "$1M+") : null)
+            );
+          })
+        )
+      )
+    ) : null,
+
+    (!loading && !error && filteredRecords.length === 0) ? h("div", { className: "status-box" }, "No transactions match these filters. Try widening the search.") : null,
+
+    (!loading && !error && hasMore) ? h("div", { className: "load-more-row" },
+      h("button", { className: "btn btn-secondary", onClick: loadMore, disabled: loadingMore }, loadingMore ? "Loading…" : "Load 50 more")
+    ) : null,
+
+    h("div", { className: "dim-divider" }, "DATA SOURCE"),
+
+    h("div", { className: "disclaimer" },
+      h("strong", null, "About this data: "),
+      "Live from data.gov.sg's \"Resale flat prices based on registration date from Jan-2017 onwards\" dataset (HDB), updated roughly hourly and covering 236,000+ transactions — no API key needed, per data.gov.sg's public access policy. \"Matching in dataset\" reflects the true total for your filters across the whole dataset; \"Loaded / shown\" and the median/highest stats reflect only the rows fetched so far (50 at a time) — load more for a larger sample. Minimum price filters the currently loaded rows, not the full dataset. Per HDB's own notes: transactions exclude resales between relatives or of part shares, and resale prices are indicative only, dependent on many factors beyond what's captured here. $PSF is calculated from floor area in sqm (× 10.7639) and is not an official HDB figure. Not investment advice."
+    )
+  );
+}
+
+/* ---------- Private property (URA REALIS) ---------- */
+
+const URA_TOKEN_URL = "https://eservice.ura.gov.sg/uraDataService/insertNewToken.action";
+const URA_DATA_URL = "https://eservice.ura.gov.sg/uraDataService/invokeUraDS/v1?service=PMI_Resi_Transaction&batch=";
+const SALE_TYPE_LABELS = { "1": "New Sale", "2": "Sub Sale", "3": "Resale" };
+const SEGMENT_LABELS = { CCR: "Core Central Region", RCR: "Rest of Central Region", OCR: "Outside Central Region" };
+
+async function fetchUraToken(accessKey){
+  let res;
+  try{
+    res = await fetch(URA_TOKEN_URL, { headers: { AccessKey: accessKey } });
+  }catch(e){
+    throw new Error(
+      "Couldn't reach URA's token service (" + e.message + "). This endpoint uses custom auth headers, which need the " +
+      "server to explicitly allow them for browser requests — unlike the HDB data source, this isn't guaranteed to work from a static page."
+    );
+  }
+  if(!res.ok){
+    const body = await res.text().catch(() => "");
+    throw new Error("HTTP " + res.status + (body ? " — " + body.slice(0, 200) : ""));
+  }
+  const data = await res.json();
+  if(data.Status !== "Success" || !data.Result) throw new Error(data.Message || "URA didn't return a valid token.");
+  return data.Result;
+}
+
+async function fetchUraTransactions(accessKey, token, batch){
+  let res;
+  try{
+    res = await fetch(URA_DATA_URL + batch, { headers: { AccessKey: accessKey, Token: token } });
+  }catch(e){
+    throw new Error("Couldn't reach URA's data service (" + e.message + ") — likely the same CORS/header restriction as the token step.");
+  }
+  if(!res.ok){
+    const body = await res.text().catch(() => "");
+    throw new Error("HTTP " + res.status + (body ? " — " + body.slice(0, 200) : ""));
+  }
+  const data = await res.json();
+  if(data.Status !== "Success" || !Array.isArray(data.Result)) throw new Error(data.Message || "URA didn't return transaction data.");
+  return data.Result;
+}
+
+function flattenUraResult(projects){
+  const rows = [];
+  for(const p of projects){
+    const txns = Array.isArray(p.transaction) ? p.transaction : [];
+    for(const t of txns){
+      rows.push({
+        project: p.project, street: p.street, marketSegment: p.marketSegment,
+        district: t.district, propertyType: t.propertyType, tenure: t.tenure,
+        floorRange: t.floorRange, area: parseFloat(t.area), price: parseFloat(t.price),
+        typeOfSale: t.typeOfSale, contractDate: t.contractDate, noOfUnits: t.noOfUnits
+      });
+    }
+  }
+  return rows;
+}
+
+function contractDateLabel(cd){
+  if(!cd || cd.length !== 4) return cd || "—";
+  return cd.slice(0, 2) + "/20" + cd.slice(2, 4);
+}
+function contractDateSortValue(cd){
+  if(!cd || cd.length !== 4) return 0;
+  return parseInt(cd.slice(2, 4), 10) * 100 + parseInt(cd.slice(0, 2), 10);
+}
+
+function PrivatePanel(){
+  const [keyInput, setKeyInput] = useState("");
+  const [accessKey, setAccessKey] = useState("");
+  const [batch, setBatch] = useState("1");
+  const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState(null);
+  const [allRecords, setAllRecords] = useState([]);
+
+  const [segment, setSegment] = useState("");
+  const [propertyType, setPropertyType] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [sortMode, setSortMode] = useState("price");
+
+  const connect = async (key, batchNum) => {
+    setConnecting(true); setConnectError(null);
+    try{
+      const token = await fetchUraToken(key);
+      const raw = await fetchUraTransactions(key, token, batchNum);
+      setAllRecords(flattenUraResult(raw));
+      setAccessKey(key);
+    }catch(e){
+      setConnectError(e.message);
+    }finally{
+      setConnecting(false);
+    }
+  };
+
+  const handleConnect = () => {
+    const trimmed = keyInput.trim();
+    if(!trimmed) return;
+    connect(trimmed, batch);
+  };
+  const changeBatch = (newBatch) => {
+    setBatch(newBatch);
+    if(accessKey) connect(accessKey, newBatch);
+  };
+
+  const propertyTypes = Array.from(new Set(allRecords.map(r => r.propertyType))).filter(Boolean).sort();
+  const minPriceNum = parseFloat(minPrice);
+  let filtered = allRecords.filter(r =>
+    (!segment || r.marketSegment === segment) &&
+    (!propertyType || r.propertyType === propertyType) &&
+    (isNaN(minPriceNum) || r.price >= minPriceNum)
+  );
+  filtered = [...filtered].sort((a, b) =>
+    sortMode === "price" ? b.price - a.price : contractDateSortValue(b.contractDate) - contractDateSortValue(a.contractDate)
+  );
+  const shown = filtered.slice(0, 200);
+  const prices = filtered.map(r => r.price).filter(n => !isNaN(n));
+  const medianPrice = median(prices);
+  const maxPrice = prices.length ? Math.max(...prices) : null;
+
+  if(!accessKey){
+    return h("div", { className: "panel" },
+      h("h2", { className: "display", style: { fontSize: "1.3rem", marginTop: 0 } }, "Connect to URA"),
+      h("p", { style: { color: "var(--ink-soft)", fontSize: "0.9rem" } },
+        "Private property transactions come from URA's own REALIS data service, separate from data.gov.sg — it needs your own free URA AccessKey. ",
+        h("a", { href: "https://www.ura.gov.sg/maps/?service=dataservice", target: "_blank", rel: "noopener" }, "Register here"),
+        "; approval and your key arrive by email."
+      ),
+      h("div", { className: "filter-grid", style: { gridTemplateColumns: "2fr 1fr" } },
+        h("div", { className: "ctl" },
+          h("label", null, "URA AccessKey"),
+          h("input", { type: "text", placeholder: "Paste your AccessKey here", value: keyInput, onChange: e => setKeyInput(e.target.value) })
+        ),
+        h("div", { className: "ctl" },
+          h("label", null, "Batch"),
+          h("select", { value: batch, onChange: e => setBatch(e.target.value) },
+            h("option", { value: "1" }, "1 (most recent)"),
+            h("option", { value: "2" }, "2"),
+            h("option", { value: "3" }, "3"),
+            h("option", { value: "4" }, "4 (oldest, up to ~5 yrs)")
+          )
+        )
+      ),
+      h("div", { className: "actions" },
+        h("button", { className: "btn btn-primary", onClick: handleConnect, disabled: connecting || !keyInput.trim() }, connecting ? "Connecting…" : "Connect")
+      ),
+      connectError ? h("div", { className: "status-box error", style: { marginTop: "14px" } }, connectError) : null,
+      h("p", { style: { fontSize: "0.78rem", color: "var(--ink-soft)", marginTop: "14px" } },
+        "Heads up: this endpoint authenticates with custom headers rather than a simple key-in-the-URL, which browsers are stricter about allowing cross-origin — it may not work from a static page the way the HDB source does. If it fails, the error above will say so."
+      )
+    );
+  }
+
+  return h("div", null,
+    h("div", { className: "panel" },
+      h("div", { className: "filter-grid" },
+        h("div", { className: "ctl" },
+          h("label", null, "Region"),
+          h("select", { value: segment, onChange: e => setSegment(e.target.value) },
+            h("option", { value: "" }, "Any region"),
+            Object.keys(SEGMENT_LABELS).map(s => h("option", { key: s, value: s }, SEGMENT_LABELS[s]))
+          )
+        ),
+        h("div", { className: "ctl" },
+          h("label", null, "Property type"),
+          h("select", { value: propertyType, onChange: e => setPropertyType(e.target.value) },
+            h("option", { value: "" }, "Any type"),
+            propertyTypes.map(t => h("option", { key: t, value: t }, t))
+          )
+        ),
+        h("div", { className: "ctl" },
+          h("label", null, "Batch"),
+          h("select", { value: batch, onChange: e => changeBatch(e.target.value) },
+            h("option", { value: "1" }, "1 (most recent)"),
+            h("option", { value: "2" }, "2"),
+            h("option", { value: "3" }, "3"),
+            h("option", { value: "4" }, "4 (oldest)")
+          )
+        ),
+        h("div", { className: "ctl" },
+          h("label", null, "Min price"),
+          h("input", { type: "number", placeholder: "e.g. 2000000", value: minPrice, onChange: e => setMinPrice(e.target.value) })
+        )
+      ),
+      h("div", { className: "sort-toggle" },
+        h("button", { className: "sort-btn" + (sortMode === "price" ? " active" : ""), onClick: () => setSortMode("price") }, "🏆 Highest Price"),
+        h("button", { className: "sort-btn" + (sortMode === "recent" ? " active" : ""), onClick: () => setSortMode("recent") }, "🕐 Most Recent")
+      ),
+      h("div", { className: "actions" },
+        h("button", { className: "btn btn-secondary", onClick: () => { setSegment(""); setPropertyType(""); setMinPrice(""); } }, "Clear filters"),
+        h("button", { className: "btn btn-secondary", onClick: () => setAccessKey(""), disabled: connecting }, "Change AccessKey")
+      )
+    ),
+
+    connectError ? h("div", { className: "status-box error" }, connectError) : null,
+
+    h("div", { className: "stat-bar" },
+      h("div", { className: "stat" }, h("div", { className: "label" }, "Loaded in batch"), h("div", { className: "value mono" }, allRecords.length.toLocaleString())),
+      h("div", { className: "stat" }, h("div", { className: "label" }, "Matching filters"), h("div", { className: "value mono" }, filtered.length.toLocaleString())),
+      h("div", { className: "stat" }, h("div", { className: "label" }, "Median (filtered)"), h("div", { className: "value mono" }, medianPrice ? formatMoney(medianPrice) : "—")),
+      h("div", { className: "stat" }, h("div", { className: "label" }, "Highest (filtered)"), h("div", { className: "value mono" }, maxPrice ? formatMoney(maxPrice) : "—"))
+    ),
+
+    shown.length > 0 ? h("div", { className: "table-wrap" },
+      h("table", { className: "tx-table" },
+        h("thead", null,
+          h("tr", null,
+            h("th", null, "Project"), h("th", null, "District"), h("th", null, "Region"),
+            h("th", null, "Type"), h("th", null, "Floor"), h("th", { className: "num" }, "Area (sqm)"),
+            h("th", { className: "num" }, "$PSF"), h("th", null, "Sale"), h("th", null, "Contract"),
+            h("th", { className: "num" }, "Price")
+          )
+        ),
+        h("tbody", null,
+          shown.map((r, idx) => {
+            const psf = sqmToPsf(r.area);
+            return h("tr", { key: idx },
+              h("td", { className: "addr" }, r.project, h("div", { style: { fontSize: "0.75rem", color: "var(--ink-soft)" } }, r.street)),
+              h("td", { className: "mono" }, r.district),
+              h("td", null, r.marketSegment),
+              h("td", null, r.propertyType),
+              h("td", { className: "mono" }, r.floorRange || "—"),
+              h("td", { className: "num mono" }, isNaN(r.area) ? "—" : r.area),
+              h("td", { className: "num mono" }, psf ? "$" + psf.toFixed(0) : "—"),
+              h("td", null, SALE_TYPE_LABELS[r.typeOfSale] || r.typeOfSale),
+              h("td", { className: "mono" }, contractDateLabel(r.contractDate)),
+              h("td", { className: "num price-cell" }, isNaN(r.price) ? "—" : formatMoney(r.price))
+            );
+          })
+        )
+      )
+    ) : (!connecting ? h("div", { className: "status-box" }, "No transactions in this batch match your filters.") : null),
+
+    filtered.length > 200 ? h("div", { className: "status-box" }, "Showing the top 200 of " + filtered.length.toLocaleString() + " matching transactions in this batch, sorted as selected above. Narrow your filters or switch sort to see others.") : null,
+
+    h("div", { className: "dim-divider" }, "DATA SOURCE"),
+    h("div", { className: "disclaimer" },
+      h("strong", null, "About this data: "),
+      "From URA's REALIS Data Service (PMI_Resi_Transaction) — private, non-landed residential transactions, split by URA into 4 batches covering roughly the past 5 years, fetched whole per batch (no server-side search, so filtering and sorting above happens in your browser after loading). \"Region\" refers to URA's Core Central / Rest of Central / Outside Central Region classification. $PSF is derived from area in sqm (× 10.7639) and isn't an official URA figure. This requires your own free URA AccessKey and uses a header-based auth flow that's less browser-friendly than the HDB source's simple query key — if it fails to connect, that's most likely why. Not investment advice."
+    )
+  );
+}
+
+function App(){
+  const params = new URLSearchParams(window.location.search);
+  const initialMode = params.get("mode") === "private" ? "private" : "hdb";
+  const [mode, setMode] = useState(initialMode);
+
+  return h("div", null,
+    h("div", { className: "sort-toggle" },
+      h("button", { className: "sort-btn" + (mode === "hdb" ? " active" : ""), onClick: () => setMode("hdb") }, "🏠 HDB"),
+      h("button", { className: "sort-btn" + (mode === "private" ? " active" : ""), onClick: () => setMode("private") }, "🏢 Private")
+    ),
+    mode === "hdb" ? h(HdbPanel) : h(PrivatePanel)
+  );
+}
+
+
+ReactDOM.createRoot(document.getElementById("root")).render(h(App));
+</script>
+</body>
+</html>

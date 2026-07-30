@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Utility Directory</title>
+<meta name="description" content="A directory of small, focused web utilities — grouped by theme." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --asphalt:#24262B;
+    --asphalt-2:#1a1c20;
+    --concrete:#EDEBE5;
+    --concrete-2:#dfdcd3;
+    --line-yellow:#F5C518;
+    --meter-green:#3F7D5C;
+    --paid-rust:#C1483B;
+    --ink:#F7F5F0;
+    --text-dark:#24262B;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--concrete);
+    color:var(--text-dark);
+    font-family:'Inter',system-ui,sans-serif;
+    min-height:100vh;
+  }
+  .display{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:0.02em;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  .hero{
+    background:linear-gradient(180deg,var(--asphalt) 0%,var(--asphalt-2) 100%);
+    color:var(--ink);
+    padding:clamp(32px,6vw,56px) clamp(16px,5vw,56px) 26px;
+  }
+  .hero .eyebrow{
+    font-family:'JetBrains Mono',monospace;
+    font-size:0.78rem;
+    color:var(--line-yellow);
+    letter-spacing:0.12em;
+    margin-bottom:10px;
+  }
+  .hero h1{
+    font-size:clamp(2rem,5vw,3.4rem);
+    margin:0 0 10px;
+    font-weight:700;
+  }
+  .hero p{
+    max-width:62ch;
+    color:#c9c7c2;
+    margin:0;
+    font-size:clamp(0.95rem,1.2vw,1.05rem);
+  }
+  .hazard{
+    height:10px;
+    background:repeating-linear-gradient(45deg,var(--line-yellow) 0 18px,var(--asphalt) 18px 36px);
+  }
+
+  main{
+    max-width:1100px;
+    margin:0 auto;
+    padding:clamp(24px,4vw,44px) clamp(16px,5vw,56px) 60px;
+  }
+
+  .level{
+    display:grid;
+    grid-template-columns:110px 1fr;
+    gap:0;
+    margin-bottom:26px;
+    border-radius:14px;
+    overflow:hidden;
+    box-shadow:0 6px 20px rgba(0,0,0,0.08);
+  }
+  @media (max-width:560px){
+    .level{grid-template-columns:1fr;}
+    .level-plate{flex-direction:row !important; padding:14px 18px !important;}
+    .level-plate .num{font-size:1.6rem !important;}
+  }
+  .level-plate{
+    background:var(--asphalt);
+    color:var(--ink);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:2px;
+    padding:18px 8px;
+    border-left:6px solid var(--line-yellow);
+  }
+  .level-plate .num{
+    font-family:'Oswald',sans-serif;
+    font-size:2.2rem;
+    font-weight:700;
+    line-height:1;
+  }
+  .level-plate .label{
+    font-size:0.62rem;
+    letter-spacing:0.08em;
+    color:#a9a6a0;
+    text-align:center;
+  }
+  .level-body{
+    background:#fff;
+    padding:18px 20px;
+  }
+  .level-title{
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    font-weight:600;
+    font-size:1.05rem;
+    margin:0 0 4px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .level-title .arrow{color:var(--meter-green);}
+  .level-sub{
+    font-size:0.85rem;
+    color:#8a8780;
+    margin:0 0 14px;
+  }
+  .spaces{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(230px,1fr));
+    gap:12px;
+  }
+  .space{
+    display:block;
+    text-decoration:none;
+    color:inherit;
+    background:var(--concrete);
+    border:2px solid var(--concrete-2);
+    border-radius:10px;
+    padding:14px 16px;
+    transition:border-color .15s ease, transform .08s ease;
+  }
+  .space:hover{
+    border-color:var(--meter-green);
+  }
+  .space:active{transform:translateY(1px);}
+  .space-num{
+    font-family:'JetBrains Mono',monospace;
+    font-size:0.7rem;
+    color:var(--meter-green);
+    letter-spacing:0.06em;
+    margin-bottom:6px;
+    display:block;
+  }
+  .space-name{
+    font-weight:600;
+    font-size:0.98rem;
+    margin-bottom:4px;
+  }
+  .space-desc{
+    font-size:0.82rem;
+    color:#77746e;
+    line-height:1.4;
+  }
+
+  .space.placeholder{
+    border-style:dashed;
+    color:#a29e97;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    font-size:0.85rem;
+  }
+  .space.placeholder:hover{border-color:var(--concrete-2);}
+
+  footer{
+    max-width:1100px;margin:0 auto;
+    padding:0 clamp(16px,5vw,56px) 40px;
+    font-size:0.78rem;color:#9a978f;
+  }
+</style>
+</head>
+<body>
+
+  <div class="hero">
+    <div class="eyebrow">// UTILITY DIRECTORY BOARD</div>
+    <h1 class="display">Every tool, parked at its own level.</h1>
+    <p>A growing set of small, single-purpose web utilities. Each theme gets its own level; each tool, its own space. Pick a level below to open a tool.</p>
+  </div>
+  <div class="hazard"></div>
+
+  <main>
+    <div class="level">
+      <div class="level-plate">
+        <div class="num">P1</div>
+        <div class="label">LEVEL</div>
+      </div>
+      <div class="level-body">
+        <h2 class="level-title"><span class="arrow">→</span> Travel &amp; Location</h2>
+        <p class="level-sub">Tools for getting around and finding things nearby.</p>
+        <div class="spaces">
+          <a class="space" href="tools/free-parking-finder.html">
+            <span class="space-num">SPACE 01</span>
+            <div class="space-name">Free &amp; Cheap Parking Finder</div>
+            <div class="space-desc">Find legal public parking near any address or your current location — filter by free, paid, or unconfirmed.</div>
+          </a>
+          <div class="space placeholder">More Level 1 tools coming soon</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="level">
+      <div class="level-plate">
+        <div class="num">P2</div>
+        <div class="label">LEVEL</div>
+      </div>
+      <div class="level-body">
+        <h2 class="level-title"><span class="arrow">→</span> Names &amp; Identity</h2>
+        <p class="level-sub">Tools for creating and blending names, brands, and identities.</p>
+        <div class="spaces">
+          <a class="space" href="tools/name-combiner.html">
+            <span class="space-num">SPACE 01</span>
+            <div class="space-name">NameWeaver</div>
+            <div class="space-desc">Blend two or more names into a portmanteau, or match a baby name to the meaning of a sibling's or relative's name — including a Chinese character, pinyin, and stroke-count deep-dive.</div>
+          </a>
+          <div class="space placeholder">More Level 2 tools coming soon</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="level">
+      <div class="level-plate">
+        <div class="num">P3</div>
+        <div class="label">LEVEL</div>
+      </div>
+      <div class="level-body">
+        <h2 class="level-title"><span class="arrow">→</span> Markets &amp; Finance</h2>
+        <p class="level-sub">Tools for tracking prices and market data.</p>
+        <div class="spaces">
+          <a class="space" href="tools/peakwatch.html">
+            <span class="space-num">SPACE 01</span>
+            <div class="space-name">PeakWatch</div>
+            <div class="space-desc">Live prices for the S&amp;P 500, Nasdaq 100, and MSCI World, each measured against its all-time high — with the current percentage drawdown from that peak.</div>
+          </a>
+          <div class="space placeholder">More Level 3 tools coming soon</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="level">
+      <div class="level-plate">
+        <div class="num">P4</div>
+        <div class="label">LEVEL</div>
+      </div>
+      <div class="level-body">
+        <h2 class="level-title"><span class="arrow">→</span> Property Research</h2>
+        <p class="level-sub">Tools for researching real property transactions.</p>
+        <div class="spaces">
+          <a class="space" href="tools/resalewatch.html?mode=hdb">
+            <span class="space-num">SPACE 01</span>
+            <div class="space-name">ResaleWatch (HDB)</div>
+            <div class="space-desc">Live Singapore HDB resale flat transactions straight from data.gov.sg — filter by town and flat type, sorted by highest price or most recent. No API key needed.</div>
+          </a>
+          <a class="space" href="tools/resalewatch.html?mode=private">
+            <span class="space-num">SPACE 02</span>
+            <div class="space-name">ResaleWatch (Private)</div>
+            <div class="space-desc">Private residential property transactions straight from URA's REALIS data service — filter by region and property type. Needs your own free URA AccessKey.</div>
+          </a>
+          <div class="space placeholder">More Level 4 tools coming soon</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="level">
+      <div class="level-plate">
+        <div class="num">P5</div>
+        <div class="label">LEVEL</div>
+      </div>
+      <div class="level-body">
+        <h2 class="level-title"><span class="arrow">→</span> Reserved</h2>
+        <p class="level-sub">Next theme goes here — just say the word.</p>
+        <div class="spaces">
+          <div class="space placeholder">Empty — send a utility idea to fill this level</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    Built as standalone pages — each tool is a single self-contained file, linked from this directory. Send the next utility idea to add another level or space.
+  </footer>
+
+</body>
+</html>

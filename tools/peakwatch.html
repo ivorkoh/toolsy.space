@@ -36,7 +36,7 @@
   }
   .serif{font-family:'Newsreader',serif;}
   .mono{font-family:'IBM Plex Mono',monospace;}
-  .wrap{max-width:1000px;margin:0 auto;padding:0 clamp(16px,4vw,40px);}
+  .wrap{max-width:1440px;margin:0 auto;padding:0 clamp(16px,3vw,40px);}
 
   .topbar{padding:16px 0;}
   .backlink{
@@ -118,21 +118,21 @@
     background:var(--card);border:1.5px solid var(--line);border-radius:var(--radius);
     overflow-x:auto;margin-bottom:30px;
   }
-  table.idx-table{width:100%;border-collapse:collapse;min-width:640px;}
+  table.idx-table{width:100%;border-collapse:collapse;font-size:0.9rem;}
   .idx-table thead th{
-    text-align:left;font-family:'IBM Plex Mono',monospace;font-size:0.68rem;
-    text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-soft);
-    padding:14px 16px;border-bottom:2px solid var(--ink);
+    text-align:left;font-family:'IBM Plex Mono',monospace;font-size:0.65rem;
+    text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-soft);
+    padding:12px 10px;border-bottom:2px solid var(--ink);
   }
   .idx-table thead th.num{text-align:right;}
   .idx-table tbody tr{border-bottom:1px solid var(--line);}
   .idx-table tbody tr:last-child{border-bottom:none;}
-  .idx-table td{padding:16px;vertical-align:top;}
+  .idx-table td{padding:11px 10px;vertical-align:top;}
   .idx-table td.num{text-align:right;}
 
-  .idx-name .serif{font-size:1.1rem;}
-  .idx-sub{font-size:0.75rem;color:var(--ink-soft);margin-top:2px;}
-  .symtag{font-size:0.68rem;color:var(--ink-soft);font-weight:400;}
+  .idx-name .serif{font-size:1rem;}
+  .idx-sub{font-size:0.72rem;color:var(--ink-soft);margin-top:2px;}
+  .symtag{font-size:0.66rem;color:var(--ink-soft);font-weight:400;}
 
   .price{font-size:1.15rem;font-weight:700;}
   .change{font-size:0.85rem;font-weight:600;margin-top:2px;}
@@ -177,6 +177,7 @@
   .disclaimer{
     font-size:0.78rem;color:var(--ink-soft);line-height:1.6;
     border-top:1px solid var(--line);padding:20px 0 40px;
+    max-width:90ch;
   }
   .disclaimer strong{color:var(--ink);}
 </style>
@@ -271,6 +272,41 @@ const FUNDAMENTALS = {
     NVDA: { pe: 37.9, peHistory: "Toward the low end of its own 2–3 year AI-era range — earnings have grown even faster than the stock price.", peg: "<1.0", pb: "~40x+", roic: "61.8%", fcf: "$96.6B (FY26)", earningsGrowth: "+66.7% YoY net income" },
     META: { pe: 27.8, peHistory: "Roughly in line with its post-2023 recovery-era average — not dramatically stretched, though this was measured just before its July 29 earnings report.", peg: "~0.6–1.3", pb: "~8–9x", roic: "32.4%", fcf: "~$1.9B est. (−95.7% YoY)", earningsGrowth: "Reports Jul 29" },
     TSLA: { pe: 377.8, peHistory: "Elevated even by Tesla's own unusually wide historical range (which has swung from under 50x to 1000x+) — P/E is close to meaningless here given how earnings-thin the company currently is.", peg: "n/m", pb: "~15–16x", roic: "2.9%", fcf: "Negative (Q2)", earningsGrowth: "EPS −18% YoY (Q2, reported Jul 28)" }
+  }
+};
+
+// Researched by Claude via live web search on July 29, 2026 — same static-snapshot approach as the
+// Magnificent 7 fundamentals above, for the same reasons (no free live source, figures move daily and
+// differ by provider). Sourcing is more of a patchwork here than for the Mag 7: some figures (AVGO,
+// TXN ROIC/PEG) come from a single coherent source (StockAnalysis.com); others are cross-referenced
+// estimates; and P/B specifically wasn't reliably found for most of these seven, so it's marked "est."
+// or left as a qualitative note rather than a fabricated number. Where a figure clearly predates a
+// major move (e.g. Intel's P/E/PEG, sourced from an April 2026 analysis before its big H1 rally), that's
+// flagged directly in the value or in the outlook note below, rather than presented as current.
+const SEMI_FUNDAMENTALS = {
+  asOf: "July 29, 2026",
+  data: {
+    AMD: { pe: 165.1, peg: "1.33", pb: "~10–12x (est.)", roic: "7.4%", fcf: "$8.57B TTM", earningsGrowth: "Record quarterly FCF; AI datacenter momentum building (MI450/Helios)" },
+    AVGO: { pe: 63.4, peg: "0.51", pb: "~20x+ (est.)", roic: "24.2%", fcf: "$10.26B (Q2 FY26, record)", earningsGrowth: "AI semi revenue +143% YoY; Q3 guided >200% YoY" },
+    INTC: { pe: "~110x (Apr '26, stale — predates its H1 rally)", peg: "3.2 (same stale source)", pb: "n/a (est. unavailable)", roic: "Weak/negative (ongoing foundry turnaround)", fcf: "Pressured by foundry capex", earningsGrowth: "+278% stock YTD (H1); Q2 beat sent shares surging" },
+    QCOM: { pe: 22.3, peg: "~1.0 (est.)", pb: "~6–7x (est.)", roic: "22.5%", fcf: "Healthy, steady dividend payer", earningsGrowth: "Pivoting into AI datacenter silicon (Dragonfly, multi-year Meta deal)" },
+    TXN: { pe: 49.8, peg: "1.68", pb: "~9.5x (dated Oct '25)", roic: "22.3%", fcf: "Solid but rich vs. FCF (EV/FCF ~74x)", earningsGrowth: "EPS +52% YoY (Q2 2026, beat-and-raise)" },
+    MU: { pe: 20.3, peg: "<0.3 (est.)", pb: "n/a (est. unavailable)", roic: "Strong, rapidly improving (precise figure not found)", fcf: "Record FCF, Q2 FY26 (per CEO)", earningsGrowth: "Revenue +345% YoY (Q3); +304% stock YTD (H1, #2 in S&P 500)" },
+    SNDK: { pe: 42.7, peg: "0.17", pb: "n/a (est. unavailable)", roic: "Rapidly improving (precise figure not found)", fcf: "Improving sharply amid memory supercycle", earningsGrowth: "EPS $6.20 vs. $3.31 est. (+88%, Q2); +860% stock YTD at H1 peak (#1 in S&P 500)" }
+  }
+};
+
+const SEMI_OUTLOOK = {
+  asOf: "July 29, 2026",
+  overall: "Semiconductors are living two stories at once: an AI-driven memory supercycle and custom-silicon boom that's produced some of the best returns in the entire S&P 500 this year, alongside a July pullback as investors start questioning how much of that is already priced in. The dispersion inside the group is unusually wide — from record free cash flow at one end to earnings multiples that only make sense if the AI buildout never slows.",
+  notes: {
+    AMD: "Riding genuine momentum in AI inferencing and agentic-AI demand, with MI450 and Helios deployments scaling and a record quarterly free cash flow print — but the market has run well ahead of earnings, pricing in years of execution the company hasn't delivered yet.",
+    AVGO: "About as strong a quarter as a semiconductor company can report — record revenue, profit, and free cash flow, AI semiconductor revenue up 143% year-over-year and guided to more than double next quarter — tempered by reports that its largest customer, Google, is starting to diversify toward other chip suppliers.",
+    INTC: "The group's biggest swing story: written off by some analysts earlier in the year as overvalued against thin earnings growth, then delivered one of the best first-half stock returns in the entire S&P 500 after a Q2 beat reignited turnaround hopes — the foundry business remains the real test of whether that's durable or a short squeeze.",
+    QCOM: "The quiet diversification story — steadily pivoting beyond its smartphone-chip roots into AI datacenter silicon, anchored by a multi-year supply deal with Meta, while trading at a valuation that looks almost conservative next to the rest of this group.",
+    TXN: "Just delivered a genuine beat-and-raise quarter — EPS up 52% year-over-year — and the stock still fell on the news, a sign investors are demanding more than good results alone from a stock already priced for AI-adjacent demand in its analog and power-management chips.",
+    MU: "At the center of the AI memory supercycle, with quarterly revenue up 345% year-over-year as HBM capacity sells out through the year — the historical risk with memory is that supercycles eventually become gluts, and this one is being priced as if that won't happen for years.",
+    SNDK: "The single best-performing story in this group by a wide margin — up roughly 860% at its 2026 high — and also the most violent, having since dropped over 30% from that peak as the same memory-supercycle enthusiasm that drove the rally turned into supply-glut and China-competition anxiety almost overnight."
   }
 };
 
@@ -380,8 +416,8 @@ function IndexRow({ def, state }){
   );
 }
 
-function StockRow({ def, state }){
-  const fundamentals = FUNDAMENTALS.data[def.symbol];
+function StockRow({ def, state, fundamentalsData }){
+  const fundamentals = (fundamentalsData || {})[def.symbol];
   if(state.loading){
     return h("tr", null,
       h("td", { className: "idx-name" }, h("div", { className: "serif" }, def.company)),
@@ -412,7 +448,7 @@ function StockRow({ def, state }){
         atPeak ? "At peak" : drawdownPct.toFixed(2) + "%"
       )
     ),
-    h("td", { className: "num mono" }, fundamentals ? fundamentals.pe.toFixed(1) : "—"),
+    h("td", { className: "num mono" }, fundamentals ? (typeof fundamentals.pe === "number" ? fundamentals.pe.toFixed(1) : fundamentals.pe) : "—"),
     h("td", { className: "num mono" }, fundamentals ? fundamentals.peg : "—"),
     h("td", { className: "num mono" }, fundamentals ? fundamentals.pb : "—"),
     h("td", { className: "num mono" }, fundamentals ? fundamentals.roic : "—"),
@@ -565,7 +601,7 @@ function App(){
             )
           ),
           h("tbody", null,
-            MAG7.map(s => h(StockRow, { key: s.key, def: s, state: magData[s.key] || { loading: true } }))
+            MAG7.map(s => h(StockRow, { key: s.key, def: s, state: magData[s.key] || { loading: true }, fundamentalsData: FUNDAMENTALS.data }))
           )
         )
       ),
@@ -619,15 +655,27 @@ function App(){
             )
           ),
           h("tbody", null,
-            SEMI.map(s => h(StockRow, { key: s.key, def: s, state: semiData[s.key] || { loading: true } }))
+            SEMI.map(s => h(StockRow, { key: s.key, def: s, state: semiData[s.key] || { loading: true }, fundamentalsData: SEMI_FUNDAMENTALS.data }))
           )
+        )
+      ),
+
+      h("div", { className: "mood-box" },
+        h("h2", { className: "serif" }, "🔬 Contributing Factors & Outlook"),
+        h("p", { className: "mood-asof" }, "Researched and written by Claude via live web search — as of ", SEMI_OUTLOOK.asOf, ". A point-in-time snapshot, not a live feed."),
+        h("p", { className: "mood-overall serif" }, SEMI_OUTLOOK.overall),
+        h("ul", { className: "mood-list" },
+          SEMI.map(s => h("li", { key: s.key },
+            h("span", { className: "mood-company" }, s.company, " "),
+            h("span", { className: "mood-note" }, SEMI_OUTLOOK.notes[s.symbol] || "No commentary available.")
+          ))
         )
       )
     ),
 
     h("div", { className: "disclaimer" },
       h("strong", null, "About this data: "),
-      "Prices come from Twelve Data's free tier and may be delayed rather than real-time tick data, and are fetched one symbol at a time with a short pause between each — the free tier allows only 8 requests per minute, and this tool now tracks 17 symbols per refresh (3 indexes, 7 Magnificent 7, 7 semiconductor stocks), so a full load takes a couple of minutes. \"52-Week High\" is Twelve Data's own computed trailing-52-week high for the symbol, returned directly by their quote endpoint. All three indexes are shown via their most widely-tracked ETF (SPY for the S&P 500, QQQ for the Nasdaq 100, URTH for MSCI World) rather than the raw index value — a deliberate choice for consistency and free-tier reliability, since raw index symbols are inconsistently available (or paywalled) across data providers, while these ETFs are freely quotable and track their index closely, if not identically (small tracking difference from fees). P/E, PEG, P/B, ROIC, Free Cash Flow, and Earnings Growth for the Magnificent 7 are all a static, dated snapshot researched by Claude via web search — like the drawdown commentary below, not a live feed. We looked into live options for these specifically (Twelve Data's fundamentals endpoint, SEC EDGAR, Macrotrends, StockAnalysis.com) and none offer free, direct browser access: SEC EDGAR explicitly disables CORS for cross-origin requests, Twelve Data's fundamentals cost more per call than the free tier's entire per-minute budget, and the finance sites only expose data through paid third-party scraping services. P/E and ROIC are each drawn from one internally-consistent source across all seven where possible; PEG, P/B, FCF, and Earnings Growth are cross-referenced across several sources and rounded (\"n/m\" = not meaningful, shown for Tesla's PEG since shrinking earnings break the calculation). Microsoft and Meta report their latest quarter on Jul 29, and Apple and Amazon on Jul 30 — as of this snapshot's research date, those four show \"Reports [date]\" rather than an actual figure, since estimates would be stale within days regardless. The semiconductor table shares this same layout for consistency, but its P/E, PEG, P/B, ROIC, FCF, and Earnings Growth columns show \"—\" — that fundamentals research hasn't been done for these seven yet; ask and it can be added the same way. None of this updates automatically and none of it should be read as current data or investment advice."
+      "Prices come from Twelve Data's free tier and may be delayed rather than real-time tick data, and are fetched one symbol at a time with a short pause between each — the free tier allows only 8 requests per minute, and this tool now tracks 17 symbols per refresh (3 indexes, 7 Magnificent 7, 7 semiconductor stocks), so a full load takes a couple of minutes. \"52-Week High\" is Twelve Data's own computed trailing-52-week high for the symbol, returned directly by their quote endpoint. All three indexes are shown via their most widely-tracked ETF (SPY for the S&P 500, QQQ for the Nasdaq 100, URTH for MSCI World) rather than the raw index value — a deliberate choice for consistency and free-tier reliability, since raw index symbols are inconsistently available (or paywalled) across data providers, while these ETFs are freely quotable and track their index closely, if not identically (small tracking difference from fees). P/E, PEG, P/B, ROIC, Free Cash Flow, and Earnings Growth for both the Magnificent 7 and the semiconductor table are a static, dated snapshot researched by Claude via web search — like the outlook commentary boxes, not a live feed. We looked into live options for these specifically (Twelve Data's fundamentals endpoint, SEC EDGAR, Macrotrends, StockAnalysis.com) and none offer free, direct browser access: SEC EDGAR explicitly disables CORS for cross-origin requests, Twelve Data's fundamentals cost more per call than the free tier's entire per-minute budget, and the finance sites only expose data through paid third-party scraping services. Figures are cross-referenced across multiple sources and rounded where possible; where a reliable number genuinely couldn't be found, that's marked \"est.\" or described qualitatively rather than invented (\"n/m\" = not meaningful, shown for Tesla's PEG since shrinking earnings break the calculation). Microsoft and Meta report their latest quarter on Jul 29, and Apple and Amazon on Jul 30 — as of the Mag 7 snapshot's research date, those four show \"Reports [date]\" rather than an actual figure. Intel's P/E and PEG are flagged as dated (April 2026), since they predate the large first-half rally described in the outlook note below — a case where the number and the narrative diverge, worth reading together rather than at face value alone. None of this updates automatically and none of it should be read as current data or investment advice."
     )
   );
 }

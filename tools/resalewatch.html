@@ -179,17 +179,23 @@ const TOWNS = [
 ];
 const FLAT_TYPES = ["1 ROOM","2 ROOM","3 ROOM","4 ROOM","5 ROOM","EXECUTIVE","MULTI-GENERATION"];
 
+function logApiError(context, error){
+  console.error("[ResaleWatch API]", context, error);
+}
+
 async function fetchJsonResilient(url){
   let res;
   try{
     res = await fetch(url);
   }catch(networkErr){
+    logApiError("data.gov.sg direct fetch failed: " + url, networkErr);
     try{
       const proxied = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
       const res2 = await fetch(proxied);
       if(!res2.ok) throw new Error("HTTP " + res2.status);
       return await res2.json();
     }catch(proxyErr){
+      logApiError("data.gov.sg fallback proxy also failed: " + url, proxyErr);
       throw new Error(
         "Couldn't reach data.gov.sg directly (" + networkErr.message + "), and the fallback proxy also failed (" + proxyErr.message + ")."
       );
@@ -197,6 +203,7 @@ async function fetchJsonResilient(url){
   }
   if(!res.ok){
     const body = await res.text().catch(() => "");
+    logApiError("data.gov.sg returned HTTP " + res.status + ": " + url, body);
     throw new Error("HTTP " + res.status + (body ? " — " + body.slice(0, 220) : ""));
   }
   return await res.json();
@@ -267,6 +274,7 @@ function HdbPanel(){
       setOffset((result.records || []).length);
       setHasMore((result.records || []).length === PAGE_SIZE);
     }catch(e){
+      logApiError("HDB runSearch failed (town=" + town + ", flatType=" + flatType + ", month=" + month + ", sort=" + sortMode + ")", e);
       setError(e.message);
       setRecords([]); setTotal(null); setHasMore(false);
     }finally{
@@ -283,6 +291,7 @@ function HdbPanel(){
       setOffset(prev => prev + newRecords.length);
       setHasMore(newRecords.length === PAGE_SIZE);
     }catch(e){
+      logApiError("HDB loadMore failed (offset=" + offset + ")", e);
       setError(e.message);
     }finally{
       setLoadingMore(false);
@@ -398,7 +407,7 @@ function HdbPanel(){
 
 /* ---------- Private property (URA REALIS) ---------- */
 
-const URA_TOKEN_URL = "https://eservice.ura.gov.sg/uraDataService/insertNewToken.action";
+const URA_TOKEN_URL = "https://eservice.ura.gov.sg/uraDataService/insertNewToken/v1";
 const URA_DATA_URL = "https://eservice.ura.gov.sg/uraDataService/invokeUraDS/v1?service=PMI_Resi_Transaction&batch=";
 const SALE_TYPE_LABELS = { "1": "New Sale", "2": "Sub Sale", "3": "Resale" };
 const SEGMENT_LABELS = { CCR: "Core Central Region", RCR: "Rest of Central Region", OCR: "Outside Central Region" };
@@ -408,6 +417,7 @@ async function fetchUraToken(accessKey){
   try{
     res = await fetch(URA_TOKEN_URL, { headers: { AccessKey: accessKey } });
   }catch(e){
+    logApiError("URA insertNewToken network failure: " + URA_TOKEN_URL, e);
     throw new Error(
       "Couldn't reach URA's token service (" + e.message + "). This endpoint uses custom auth headers, which need the " +
       "server to explicitly allow them for browser requests — unlike the HDB data source, this isn't guaranteed to work from a static page."
@@ -415,10 +425,14 @@ async function fetchUraToken(accessKey){
   }
   if(!res.ok){
     const body = await res.text().catch(() => "");
+    logApiError("URA insertNewToken returned HTTP " + res.status, body);
     throw new Error("HTTP " + res.status + (body ? " — " + body.slice(0, 200) : ""));
   }
   const data = await res.json();
-  if(data.Status !== "Success" || !data.Result) throw new Error(data.Message || "URA didn't return a valid token.");
+  if(data.Status !== "Success" || !data.Result){
+    logApiError("URA insertNewToken returned a non-success status", data);
+    throw new Error(data.Message || "URA didn't return a valid token.");
+  }
   return data.Result;
 }
 
@@ -427,14 +441,19 @@ async function fetchUraTransactions(accessKey, token, batch){
   try{
     res = await fetch(URA_DATA_URL + batch, { headers: { AccessKey: accessKey, Token: token } });
   }catch(e){
+    logApiError("URA invokeUraDS network failure (batch=" + batch + "): " + URA_DATA_URL + batch, e);
     throw new Error("Couldn't reach URA's data service (" + e.message + ") — likely the same CORS/header restriction as the token step.");
   }
   if(!res.ok){
     const body = await res.text().catch(() => "");
+    logApiError("URA invokeUraDS returned HTTP " + res.status + " (batch=" + batch + ")", body);
     throw new Error("HTTP " + res.status + (body ? " — " + body.slice(0, 200) : ""));
   }
   const data = await res.json();
-  if(data.Status !== "Success" || !Array.isArray(data.Result)) throw new Error(data.Message || "URA didn't return transaction data.");
+  if(data.Status !== "Success" || !Array.isArray(data.Result)){
+    logApiError("URA invokeUraDS returned a non-success status (batch=" + batch + ")", data);
+    throw new Error(data.Message || "URA didn't return transaction data.");
+  }
   return data.Result;
 }
 
@@ -484,6 +503,7 @@ function PrivatePanel(){
       setAllRecords(flattenUraResult(raw));
       setAccessKey(key);
     }catch(e){
+      logApiError("URA connect flow failed (batch=" + batchNum + ")", e);
       setConnectError(e.message);
     }finally{
       setConnecting(false);
@@ -529,12 +549,12 @@ function PrivatePanel(){
           h("input", { type: "text", placeholder: "Paste your AccessKey here", value: keyInput, onChange: e => setKeyInput(e.target.value) })
         ),
         h("div", { className: "ctl" },
-          h("label", null, "Batch"),
+          h("label", null, "Batch (postal districts)"),
           h("select", { value: batch, onChange: e => setBatch(e.target.value) },
-            h("option", { value: "1" }, "1 (most recent)"),
-            h("option", { value: "2" }, "2"),
-            h("option", { value: "3" }, "3"),
-            h("option", { value: "4" }, "4 (oldest, up to ~5 yrs)")
+            h("option", { value: "1" }, "1 — districts 01–07"),
+            h("option", { value: "2" }, "2 — districts 08–14"),
+            h("option", { value: "3" }, "3 — districts 15–21"),
+            h("option", { value: "4" }, "4 — districts 22–28")
           )
         )
       ),
@@ -566,12 +586,12 @@ function PrivatePanel(){
           )
         ),
         h("div", { className: "ctl" },
-          h("label", null, "Batch"),
+          h("label", null, "Batch (postal districts)"),
           h("select", { value: batch, onChange: e => changeBatch(e.target.value) },
-            h("option", { value: "1" }, "1 (most recent)"),
-            h("option", { value: "2" }, "2"),
-            h("option", { value: "3" }, "3"),
-            h("option", { value: "4" }, "4 (oldest)")
+            h("option", { value: "1" }, "1 — districts 01–07"),
+            h("option", { value: "2" }, "2 — districts 08–14"),
+            h("option", { value: "3" }, "3 — districts 15–21"),
+            h("option", { value: "4" }, "4 — districts 22–28")
           )
         ),
         h("div", { className: "ctl" },
@@ -633,7 +653,7 @@ function PrivatePanel(){
     h("div", { className: "dim-divider" }, "DATA SOURCE"),
     h("div", { className: "disclaimer" },
       h("strong", null, "About this data: "),
-      "From URA's REALIS Data Service (PMI_Resi_Transaction) — private, non-landed residential transactions, split by URA into 4 batches covering roughly the past 5 years, fetched whole per batch (no server-side search, so filtering and sorting above happens in your browser after loading). \"Region\" refers to URA's Core Central / Rest of Central / Outside Central Region classification. $PSF is derived from area in sqm (× 10.7639) and isn't an official URA figure. This requires your own free URA AccessKey and uses a header-based auth flow that's less browser-friendly than the HDB source's simple query key — if it fails to connect, that's most likely why. Not investment advice."
+      "From URA's REALIS Data Service (PMI_Resi_Transaction) — private, non-landed residential transactions from the past 5 years, updated by URA at end-of-day every Tuesday and Friday. URA splits this into 4 batches by postal district (1: districts 01–07, 2: 08–14, 3: 15–21, 4: 22–28) rather than by date, so switch batches to see other parts of Singapore, not older data — each batch is fetched whole (no server-side search, so filtering and sorting above happens in your browser after loading). \"Region\" refers to URA's Core Central / Rest of Central / Outside Central Region classification. $PSF is derived from area in sqm (× 10.7639) and isn't an official URA figure. This requires your own free URA AccessKey and uses a header-based auth flow that's less browser-friendly than the HDB source's simple query key — if it fails to connect, check the browser console for the logged request details. Not investment advice."
     )
   );
 }

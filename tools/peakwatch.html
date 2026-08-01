@@ -310,11 +310,16 @@ const SEMI_OUTLOOK = {
   }
 };
 
+function logApiError(context, error){
+  console.error("[PeakWatch API]", context, error);
+}
+
 async function fetchJsonResilient(url){
   let res;
   try{
     res = await fetch(url);
   }catch(networkErr){
+    logApiError("Direct fetch failed: " + url, networkErr);
     // fetch() itself threw — this is the actual CORS/network-failure case, worth a proxy retry
     try{
       const proxied = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
@@ -322,6 +327,7 @@ async function fetchJsonResilient(url){
       if(!res2.ok) throw new Error("HTTP " + res2.status);
       return await res2.json();
     }catch(proxyErr){
+      logApiError("Fallback proxy also failed: " + url, proxyErr);
       throw new Error(
         "Couldn't reach the provider directly (likely a network or CORS block: " + networkErr.message + "), " +
         "and the fallback proxy also failed (" + proxyErr.message + ")."
@@ -331,6 +337,7 @@ async function fetchJsonResilient(url){
   // We got a real response — CORS isn't the issue. Surface the API's own error, don't waste time on a proxy retry.
   if(!res.ok){
     const body = await res.text().catch(() => "");
+    logApiError("Returned HTTP " + res.status + ": " + url, body);
     throw new Error("HTTP " + res.status + (body ? " — " + body.slice(0, 220) : ""));
   }
   return await res.json();
@@ -345,6 +352,7 @@ async function fetchQuoteWithHigh(symbol, apiKey){
   try{
     data = await fetchJsonResilient(url);
   }catch(e){
+    logApiError("fetchQuoteWithHigh failed for " + symbol, e);
     if(/HTTP 401/.test(e.message) || /apikey/i.test(e.message)){
       throw new Error("This API key isn't valid for Twelve Data — note it needs to be a Twelve Data key (twelvedata.com/pricing), not a key from a different provider. Click \"Change API key\" above to re-enter it.");
     }
@@ -499,6 +507,7 @@ function App(){
         const quote = await fetchQuoteWithHigh(def.symbol, key);
         setForKind(prev => ({ ...prev, [def.key]: { loading: false, error: null, quote } }));
       }catch(e){
+        logApiError("loadAll: " + kind + " symbol " + def.symbol + " failed", e);
         setForKind(prev => ({ ...prev, [def.key]: { loading: false, error: e.message, quote: null } }));
       }
       setLoadProgress({ done: i + 1, total: tasks.length });

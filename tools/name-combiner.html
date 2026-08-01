@@ -1174,13 +1174,23 @@ const THEME_LIST = ["grace","wisdom","strength","virtue","nature","light","peace
    still isn't a dead end. Tiered: a small per-character dataset first (fast), then a
    comprehensive Unicode Unihan fallback for the rare characters that first tier misses. */
 
+function logApiError(context, error){
+  console.error("[NameWeaver API]", context, error);
+}
+
 async function fetchStrokesFromHanziWriter(ch){
   try{
     const res = await fetch("https://raw.githubusercontent.com/chanind/hanzi-writer-data/master/data/" + encodeURIComponent(ch) + ".json");
-    if(!res.ok) return null;
+    if(!res.ok){
+      logApiError("hanzi-writer-data returned HTTP " + res.status + " for character " + ch, res.status);
+      return null;
+    }
     const data = await res.json();
     return Array.isArray(data.strokes) ? data.strokes.length : null;
-  }catch(e){ return null; }
+  }catch(e){
+    logApiError("hanzi-writer-data fetch failed for character " + ch, e);
+    return null;
+  }
 }
 
 let unihanStrokeMapPromise = null;
@@ -1197,7 +1207,7 @@ function getUnihanStrokeMap(){
         }
         return map;
       })
-      .catch(() => new Map());
+      .catch(e => { logApiError("Unihan stroke-map fetch failed", e); return new Map(); });
   }
   return unihanStrokeMapPromise;
 }
@@ -1225,7 +1235,7 @@ function getPinyinMap(){
         }
         return map;
       })
-      .catch(() => new Map());
+      .catch(e => { logApiError("Pinyin map fetch failed", e); return new Map(); });
   }
   return pinyinMapPromise;
 }
@@ -1258,7 +1268,7 @@ function getCedictMap(){
         }
         return map;
       })
-      .catch(() => new Map());
+      .catch(e => { logApiError("CC-CEDICT fetch failed", e); return new Map(); });
   }
   return cedictMapPromise;
 }

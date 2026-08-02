@@ -412,17 +412,35 @@ const URA_DATA_URL = "https://eservice.ura.gov.sg/uraDataService/invokeUraDS/v1?
 const SALE_TYPE_LABELS = { "1": "New Sale", "2": "Sub Sale", "3": "Resale" };
 const SEGMENT_LABELS = { CCR: "Core Central Region", RCR: "Rest of Central Region", OCR: "Outside Central Region" };
 
-async function fetchUraToken(accessKey){
-  let res;
+// URA's entire API (every endpoint, per their official docs) authenticates via custom HTTP headers
+// only — there's no query-param alternative. Custom headers trigger a CORS preflight, and URA's
+// server doesn't appear to handle that for browser origins, causing the direct fetch to fail before
+// a response ever comes back. corsproxy.io is used as a fallback here (not the allorigins.win proxy
+// used elsewhere in this app) specifically because it forwards request headers through to the target
+// server — allorigins.win doesn't. Its free tier is scoped to specific known dev origins (including
+// localhost), so this may behave differently once deployed somewhere else.
+async function fetchWithHeaderForwardingFallback(url, headers, context){
   try{
-    res = await fetch(URA_TOKEN_URL, { headers: { AccessKey: accessKey } });
-  }catch(e){
-    logApiError("URA insertNewToken network failure: " + URA_TOKEN_URL, e);
-    throw new Error(
-      "Couldn't reach URA's token service (" + e.message + "). This endpoint uses custom auth headers, which need the " +
-      "server to explicitly allow them for browser requests — unlike the HDB data source, this isn't guaranteed to work from a static page."
-    );
+    const res = await fetch(url, { headers });
+    return res;
+  }catch(directErr){
+    logApiError(context + ": direct fetch failed, trying header-forwarding proxy", directErr);
+    try{
+      const proxied = "https://corsproxy.io/?url=" + encodeURIComponent(url);
+      const res = await fetch(proxied, { headers });
+      return res;
+    }catch(proxyErr){
+      logApiError(context + ": header-forwarding proxy also failed", proxyErr);
+      throw new Error(
+        "Couldn't reach URA directly (" + directErr.message + "), and the corsproxy.io fallback also failed (" + proxyErr.message + "). " +
+        "URA's API only supports header-based auth (no query-param option), which needs explicit CORS support this server may not provide."
+      );
+    }
   }
+}
+
+async function fetchUraToken(accessKey){
+  const res = await fetchWithHeaderForwardingFallback(URA_TOKEN_URL, { AccessKey: accessKey }, "URA insertNewToken");
   if(!res.ok){
     const body = await res.text().catch(() => "");
     logApiError("URA insertNewToken returned HTTP " + res.status, body);
@@ -437,13 +455,7 @@ async function fetchUraToken(accessKey){
 }
 
 async function fetchUraTransactions(accessKey, token, batch){
-  let res;
-  try{
-    res = await fetch(URA_DATA_URL + batch, { headers: { AccessKey: accessKey, Token: token } });
-  }catch(e){
-    logApiError("URA invokeUraDS network failure (batch=" + batch + "): " + URA_DATA_URL + batch, e);
-    throw new Error("Couldn't reach URA's data service (" + e.message + ") — likely the same CORS/header restriction as the token step.");
-  }
+  const res = await fetchWithHeaderForwardingFallback(URA_DATA_URL + batch, { AccessKey: accessKey, Token: token }, "URA invokeUraDS (batch=" + batch + ")");
   if(!res.ok){
     const body = await res.text().catch(() => "");
     logApiError("URA invokeUraDS returned HTTP " + res.status + " (batch=" + batch + ")", body);
@@ -563,7 +575,7 @@ function PrivatePanel(){
       ),
       connectError ? h("div", { className: "status-box error", style: { marginTop: "14px" } }, connectError) : null,
       h("p", { style: { fontSize: "0.78rem", color: "var(--ink-soft)", marginTop: "14px" } },
-        "Heads up: this endpoint authenticates with custom headers rather than a simple key-in-the-URL, which browsers are stricter about allowing cross-origin — it may not work from a static page the way the HDB source does. If it fails, the error above will say so."
+        "Heads up: URA authenticates with custom headers rather than a simple key-in-the-URL, which browsers are stricter about allowing cross-origin. If a direct connection is blocked, this automatically retries through corsproxy.io, which forwards those headers through — that works from localhost and a few other known dev origins on its free tier, but may need a different setup once deployed elsewhere. If it still fails, the error above will say exactly why."
       )
     );
   }
@@ -653,7 +665,7 @@ function PrivatePanel(){
     h("div", { className: "dim-divider" }, "DATA SOURCE"),
     h("div", { className: "disclaimer" },
       h("strong", null, "About this data: "),
-      "From URA's REALIS Data Service (PMI_Resi_Transaction) — private, non-landed residential transactions from the past 5 years, updated by URA at end-of-day every Tuesday and Friday. URA splits this into 4 batches by postal district (1: districts 01–07, 2: 08–14, 3: 15–21, 4: 22–28) rather than by date, so switch batches to see other parts of Singapore, not older data — each batch is fetched whole (no server-side search, so filtering and sorting above happens in your browser after loading). \"Region\" refers to URA's Core Central / Rest of Central / Outside Central Region classification. $PSF is derived from area in sqm (× 10.7639) and isn't an official URA figure. This requires your own free URA AccessKey and uses a header-based auth flow that's less browser-friendly than the HDB source's simple query key — if it fails to connect, check the browser console for the logged request details. Not investment advice."
+      "From URA's REALIS Data Service (PMI_Resi_Transaction) — private, non-landed residential transactions from the past 5 years, updated by URA at end-of-day every Tuesday and Friday. URA splits this into 4 batches by postal district (1: districts 01–07, 2: 08–14, 3: 15–21, 4: 22–28) rather than by date, so switch batches to see other parts of Singapore, not older data — each batch is fetched whole (no server-side search, so filtering and sorting above happens in your browser after loading). \"Region\" refers to URA's Core Central / Rest of Central / Outside Central Region classification. $PSF is derived from area in sqm (× 10.7639) and isn't an official URA figure. This requires your own free URA AccessKey. URA's API authenticates with custom HTTP headers on every endpoint (confirmed against their own docs — there's no query-param alternative), which browsers block cross-origin by default; if a direct connection fails, this automatically retries through corsproxy.io, one of the few free proxies that forwards those headers through rather than just mirroring a plain GET. That fallback's free tier covers localhost and a handful of other dev origins — if it still fails after that retry, check the browser console for the exact logged error. Not investment advice."
     )
   );
 }

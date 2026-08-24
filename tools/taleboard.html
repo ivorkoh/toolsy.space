@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>TaleBoard — AI Picture Book Author</title>
+<meta name="description" content="Turn an age group, character, and lesson into a full picture book manuscript — page-by-page story text, illustration prompts, and character emotion notes." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+
+<style>
+  :root{
+    --page:#FFF8F0;
+    --page-2:#FDEEE3;
+    --card:#FFFDFA;
+    --ink:#3A2E4D;
+    --ink-soft:#7A6E8C;
+    --lavender:#8B7FD1;
+    --lavender-deep:#6C5DC4;
+    --coral:#FF8A73;
+    --mint:#4FAE7A;
+    --sun:#F5B942;
+    --line:#F0DCC8;
+    --radius:16px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--page);
+    color:var(--ink);
+    font-family:'Nunito',system-ui,sans-serif;
+    line-height:1.6;
+  }
+  .display{font-family:'Baloo 2',cursive;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .wrap{max-width:980px;margin:0 auto;padding:0 clamp(16px,4vw,40px);}
+  a{color:var(--lavender-deep);}
+
+  .topbar{padding:16px 0;}
+  .backlink{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--lavender-deep);font-weight:700;font-size:0.85rem;}
+
+  .hero{padding:14px 0 28px;text-align:center;}
+  .hero .tag{font-family:'JetBrains Mono',monospace;font-size:0.72rem;letter-spacing:0.12em;color:var(--coral);text-transform:uppercase;margin-bottom:10px;}
+  .hero h1{font-size:clamp(2.1rem,5vw,3.2rem);margin:0 0 10px;font-weight:800;color:var(--lavender-deep);}
+  .hero p{color:var(--ink-soft);max-width:60ch;margin:0 auto;font-size:clamp(0.95rem,1.1vw,1.05rem);}
+
+  .panel{background:var(--card);border:2px solid var(--line);border-radius:var(--radius);padding:22px 24px;margin-bottom:24px;}
+  .panel h2{font-family:'Baloo 2',cursive;font-size:1.3rem;margin:0 0 6px;color:var(--lavender-deep);}
+  .panel .sub{color:var(--ink-soft);font-size:0.9rem;margin:0 0 16px;}
+
+  .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:14px;}
+  .ctl{display:flex;flex-direction:column;}
+  .ctl label{font-size:0.72rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-soft);margin-bottom:6px;font-weight:700;}
+  .ctl select, .ctl input, .ctl textarea{
+    padding:11px 12px;border-radius:10px;border:2px solid var(--line);
+    font-family:'Nunito',sans-serif;font-size:0.95rem;background:#fff;color:var(--ink);
+  }
+  .ctl select:focus, .ctl input:focus, .ctl textarea:focus{outline:none;border-color:var(--lavender);}
+  .ctl.full{grid-column:1/-1;}
+
+  .actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+  button.btn{font-family:'Nunito',sans-serif;font-weight:800;border:none;border-radius:12px;padding:12px 22px;cursor:pointer;font-size:0.95rem;}
+  .btn-primary{background:var(--lavender-deep);color:#fff;}
+  .btn-primary:hover{background:#5B4DB8;}
+  .btn-primary:disabled{background:#C9C2DE;cursor:not-allowed;}
+  .btn-secondary{background:#fff;border:2px solid var(--line);color:var(--ink);}
+  .btn-secondary:hover{border-color:var(--lavender);}
+  .btn-secondary:disabled{opacity:0.5;cursor:not-allowed;}
+  .btn-text{background:none;border:none;color:var(--lavender-deep);font-weight:700;text-decoration:underline;cursor:pointer;padding:0;font-size:0.85rem;}
+
+  .keynote{font-size:0.8rem;color:var(--ink-soft);margin-top:12px;}
+
+  .status-box{background:var(--page-2);border:2px dashed var(--line);border-radius:var(--radius);padding:16px 18px;color:var(--ink-soft);font-size:0.9rem;margin-bottom:20px;}
+  .status-box.error{border-color:var(--coral);color:#B5533E;background:#FFF1EC;}
+
+  .anchor-box{
+    background:linear-gradient(135deg,var(--lavender) 0%,var(--lavender-deep) 100%);
+    color:#fff;border-radius:var(--radius);padding:20px 24px;margin-bottom:24px;
+  }
+  .anchor-box .label{font-family:'JetBrains Mono',monospace;font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;opacity:0.85;margin-bottom:6px;}
+  .anchor-box .title{font-family:'Baloo 2',cursive;font-size:1.5rem;margin:0 0 8px;}
+  .anchor-box .desc{font-size:1rem;line-height:1.5;}
+
+  .page-card{background:var(--card);border:2px solid var(--line);border-radius:var(--radius);padding:20px 22px;margin-bottom:18px;position:relative;}
+  .page-badge{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:36px;height:36px;border-radius:50%;background:var(--sun);color:#5B3E00;
+    font-family:'Baloo 2',cursive;font-weight:700;font-size:1rem;margin-bottom:12px;
+  }
+  .page-shot-tag{
+    display:inline-block;margin-left:8px;padding:3px 10px;border-radius:999px;
+    background:var(--page-2);color:var(--ink-soft);font-size:0.7rem;font-weight:700;
+    text-transform:uppercase;letter-spacing:0.04em;vertical-align:middle;
+  }
+  .story-text{font-size:1.15rem;line-height:1.6;color:var(--ink);margin:0 0 16px;font-weight:600;}
+  .emotion-pill{
+    display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;
+    background:#FFF1EC;color:#B5533E;font-size:0.8rem;font-weight:700;margin-bottom:14px;
+  }
+  .prompt-box{
+    background:var(--page-2);border:2px dashed var(--line);border-radius:12px;
+    padding:14px 16px;position:relative;
+  }
+  .prompt-box .plabel{font-family:'JetBrains Mono',monospace;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-soft);margin-bottom:6px;}
+  .prompt-box .ptext{font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.55;color:var(--ink);}
+  .copy-btn{
+    margin-top:10px;background:#fff;border:1.5px solid var(--line);border-radius:8px;
+    padding:5px 12px;font-size:0.75rem;font-weight:700;cursor:pointer;color:var(--ink-soft);
+  }
+  .copy-btn:hover{border-color:var(--lavender);color:var(--lavender-deep);}
+  .copy-btn.copied{background:var(--mint);border-color:var(--mint);color:#fff;}
+
+  .book-toolbar{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px;}
+
+  .disclaimer{font-size:0.78rem;color:var(--ink-soft);line-height:1.6;border-top:2px solid var(--line);padding:22px 0 40px;max-width:85ch;}
+  .disclaimer strong{color:var(--ink);}
+</style>
+</head>
+<body>
+
+<div class="wrap topbar">
+  <a class="backlink" href="../index.html">← Utility Directory</a>
+</div>
+
+<div class="wrap hero">
+  <div class="tag">// TaleBoard</div>
+  <h1 class="display">Your idea, turned into a picture book.</h1>
+  <p>Give it an age group, a character, and a lesson — get back a full page-by-page manuscript with story text, detailed illustration prompts, and character emotion notes, ready for your favorite AI image generator.</p>
+</div>
+
+<div class="wrap">
+  <div id="root"></div>
+</div>
+
+<script>
+const { useState, useCallback, useRef } = React;
+const h = React.createElement;
+
+function logApiError(context, error){
+  console.error("[TaleBoard API]", context, error);
+}
+
+const AGE_PRESETS = ["2–3 (Toddler)", "4–6 (Preschool)", "7–9 (Early Reader)", "Custom…"];
+
+const TOPIC_PRESETS = [
+  "A shy robot making friends",
+  "A lost puppy finding its way home",
+  "A little seed learning to grow",
+  "A brave firefly afraid of the dark",
+  "Two dinosaurs who look very different becoming best friends",
+  "A clumsy young dragon who just wants to help",
+  "A tiny boat afraid to leave the harbor",
+  "Custom…"
+];
+
+const MORAL_PRESETS = [
+  "It's okay to be different",
+  "True friendship means accepting each other",
+  "Being brave means trying even when you're scared",
+  "Sharing makes everyone happier",
+  "Mistakes help us learn and grow",
+  "Kindness always makes a difference",
+  "It's okay to ask for help",
+  "Custom…"
+];
+
+const STYLE_PRESETS = [
+  "Soft watercolor illustration, minimalist, bright colors, children's book style",
+  "Bold flat-color cartoon illustration, thick outlines, cheerful, children's book style",
+  "Gentle pastel crayon-textured illustration, whimsical, children's book style",
+  "Warm gouache painting style, textured, storybook illustration",
+  "Digital illustration, soft shading, rounded shapes, Pixar-inspired storybook style",
+  "Custom…"
+];
+
+const MODELS = [
+  { value: "claude-sonnet-5", label: "Claude Sonnet 5 (recommended)" },
+  { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5 (fastest, cheapest)" },
+  { value: "claude-opus-4-8", label: "Claude Opus 4.8 (highest quality)" }
+];
+
+const LOADING_MESSAGES = [
+  "Warming up the crayons…",
+  "Sketching the very first page…",
+  "Teaching the main character to wave…",
+  "Choosing just the right words…",
+  "Making sure the pictures match…",
+  "Sprinkling in a happy ending…",
+  "Double-checking every page…"
+];
+
+function buildPrompt({ ageGroup, topic, moral, numPages, artStyle }){
+  return `You are an award-winning children's picture book author and art director, briefed to produce a complete manuscript.
+
+BRIEF
+- Age group: ${ageGroup}
+- Topic / main character: ${topic}
+- Moral of the story: ${moral}
+- Number of pages: exactly ${numPages}
+- Art style (to appear in every illustration prompt): ${artStyle}
+
+REQUIREMENTS
+1. Vocabulary must be simple, warm, and engaging, calibrated precisely for the given age group.
+2. Break the story into exactly ${numPages} pages. Each page's story text must be 1 to 3 short sentences.
+3. Invent ONE main character with specific, concrete physical traits (form, colors, one distinguishing feature). Write a single "anchor description" sentence for this character. Every single illustration prompt must begin with that exact anchor description, worded identically, so an AI image generator renders the same character consistently across all pages.
+4. Vary the illustration pacing across the book: alternate between wide/action shots (the character in their environment, doing something) and close-up/emotional shots (the character's face and feelings, up close). Do not repeat the same shot type more than twice in a row. Mark each page's shot type.
+5. Every illustration prompt must end with this exact phrase: "${artStyle}".
+6. The story must clearly and naturally convey the given moral by its ending, without stating it as a bald aphorism unless the final page does so gently and briefly.
+7. For each page, give a short character-emotion note (2 to 4 words).
+
+OUTPUT FORMAT
+Respond with ONLY valid JSON — no markdown code fences, no commentary before or after — in exactly this shape:
+{
+  "title": "string",
+  "anchorDescription": "string",
+  "pages": [
+    { "page": 1, "shotType": "wide" or "close-up", "storyText": "string", "illustrationPrompt": "string", "emotion": "string" }
+  ]
+}
+Include exactly ${numPages} page objects, numbered 1 to ${numPages} in order.`;
+}
+
+async function generateBook({ apiKey, model, brief }){
+  const prompt = buildPrompt(brief);
+  const maxTokens = Math.min(8000, 900 + brief.numPages * 220);
+  const url = "https://api.anthropic.com/v1/messages";
+  let res;
+  try{
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+  }catch(e){
+    logApiError("Network failure calling api.anthropic.com", e);
+    throw new Error("Couldn't reach the Anthropic API (" + e.message + "). Check your internet connection and try again.");
+  }
+  if(!res.ok){
+    const body = await res.text().catch(() => "");
+    logApiError("Anthropic API returned HTTP " + res.status, body);
+    let msg = "HTTP " + res.status;
+    try{
+      const parsed = JSON.parse(body);
+      if(parsed.error && parsed.error.message) msg += " — " + parsed.error.message;
+    }catch(_e){ if(body) msg += " — " + body.slice(0, 200); }
+    if(res.status === 401) msg += " (check that your API key is correct and active)";
+    if(res.status === 429) msg += " (rate limit or usage cap reached on your Anthropic account)";
+    throw new Error(msg);
+  }
+  const data = await res.json();
+  const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
+  const clean = text.replace(/^```json\s*|^```\s*|```\s*$/gm, "").trim();
+  let parsed;
+  try{
+    parsed = JSON.parse(clean);
+  }catch(e){
+    logApiError("Failed to parse book JSON from model response", { raw: text, error: e.message });
+    throw new Error("The model's response wasn't valid JSON, so the book couldn't be parsed. Try regenerating — this occasionally happens with creative, long-form output.");
+  }
+  if(!parsed.pages || !Array.isArray(parsed.pages) || parsed.pages.length === 0){
+    logApiError("Parsed JSON missing pages array", parsed);
+    throw new Error("The model's response didn't include page data. Try regenerating.");
+  }
+  return parsed;
+}
+
+function PageCard({ page }){
+  const [copied, setCopied] = useState(false);
+  const copyPrompt = () => {
+    navigator.clipboard.writeText(page.illustrationPrompt || "").then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    }).catch(() => {});
+  };
+  return h("div", { className: "page-card" },
+    h("div", null,
+      h("span", { className: "page-badge" }, page.page),
+      page.shotType ? h("span", { className: "page-shot-tag" }, page.shotType === "close-up" ? "🔍 Close-up" : "🌄 Wide shot") : null
+    ),
+    h("p", { className: "story-text" }, page.storyText),
+    page.emotion ? h("div", { className: "emotion-pill" }, "💭 ", page.emotion) : null,
+    h("div", { className: "prompt-box" },
+      h("div", { className: "plabel" }, "🎨 Illustration Prompt"),
+      h("div", { className: "ptext" }, page.illustrationPrompt),
+      h("button", { className: "copy-btn" + (copied ? " copied" : ""), onClick: copyPrompt }, copied ? "Copied!" : "Copy prompt")
+    )
+  );
+}
+
+function App(){
+  const [apiKey, setApiKey] = useState("");
+  const [keyInput, setKeyInput] = useState("");
+  const [model, setModel] = useState(MODELS[0].value);
+
+  const [ageGroup, setAgeGroup] = useState(AGE_PRESETS[1]);
+  const [ageCustom, setAgeCustom] = useState("");
+  const [topic, setTopic] = useState(TOPIC_PRESETS[0]);
+  const [topicCustom, setTopicCustom] = useState("");
+  const [moral, setMoral] = useState(MORAL_PRESETS[0]);
+  const [moralCustom, setMoralCustom] = useState("");
+  const [numPages, setNumPages] = useState(12);
+  const [artStyle, setArtStyle] = useState(STYLE_PRESETS[0]);
+  const [artCustom, setArtCustom] = useState("");
+
+  const [loading, setLoading] = useState(false);
+  const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0]);
+  const [error, setError] = useState(null);
+  const [book, setBook] = useState(null);
+  const loadingTimerRef = useRef(null);
+
+  const effectiveAge = ageGroup === "Custom…" ? ageCustom : ageGroup;
+  const effectiveTopic = topic === "Custom…" ? topicCustom : topic;
+  const effectiveMoral = moral === "Custom…" ? moralCustom : moral;
+  const effectiveStyle = artStyle === "Custom…" ? artCustom : artStyle;
+
+  const canGenerate = apiKey && effectiveAge.trim() && effectiveTopic.trim() && effectiveMoral.trim() && effectiveStyle.trim() && numPages >= 4 && numPages <= 24;
+
+  const startLoadingMessages = () => {
+    let i = 0;
+    setLoadingMsg(LOADING_MESSAGES[0]);
+    loadingTimerRef.current = setInterval(() => {
+      i = (i + 1) % LOADING_MESSAGES.length;
+      setLoadingMsg(LOADING_MESSAGES[i]);
+    }, 2600);
+  };
+  const stopLoadingMessages = () => {
+    if(loadingTimerRef.current){ clearInterval(loadingTimerRef.current); loadingTimerRef.current = null; }
+  };
+
+  const handleGenerate = async () => {
+    if(!canGenerate) return;
+    setLoading(true); setError(null); setBook(null);
+    startLoadingMessages();
+    try{
+      const result = await generateBook({
+        apiKey, model,
+        brief: { ageGroup: effectiveAge, topic: effectiveTopic, moral: effectiveMoral, numPages: Number(numPages), artStyle: effectiveStyle }
+      });
+      setBook(result);
+    }catch(e){
+      setError(e.message);
+    }finally{
+      stopLoadingMessages();
+      setLoading(false);
+    }
+  };
+
+  const handleSaveKey = () => {
+    const trimmed = keyInput.trim();
+    if(!trimmed) return;
+    setApiKey(trimmed);
+  };
+
+  const copyAllPrompts = () => {
+    if(!book) return;
+    const text = book.pages.map(p => "Page " + p.page + ": " + p.illustrationPrompt).join("\n\n");
+    navigator.clipboard.writeText(text).catch(() => {});
+  };
+
+  const downloadBook = () => {
+    if(!book) return;
+    const lines = [];
+    lines.push(book.title || "Untitled Picture Book");
+    lines.push("Anchor character: " + book.anchorDescription);
+    lines.push("");
+    book.pages.forEach(p => {
+      lines.push("--- Page " + p.page + " (" + (p.shotType || "") + ") ---");
+      lines.push("Story: " + p.storyText);
+      lines.push("Emotion: " + p.emotion);
+      lines.push("Illustration prompt: " + p.illustrationPrompt);
+      lines.push("");
+    });
+    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = (book.title || "picture-book").toLowerCase().replace(/[^a-z0-9]+/g, "-") + ".txt";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  return h("div", null,
+
+    !apiKey ? h("div", { className: "panel" },
+      h("h2", null, "Connect your Anthropic API key"),
+      h("p", { className: "sub" }, "TaleBoard calls Claude directly from your browser using your own key — nothing runs on a server in between. Get a key at ", h("a", { href: "https://console.anthropic.com/settings/keys", target: "_blank", rel: "noopener" }, "console.anthropic.com"), " (pay-as-you-go; a full book typically costs a few cents)."),
+      h("div", { className: "form-grid" },
+        h("div", { className: "ctl full" },
+          h("label", null, "Anthropic API key"),
+          h("input", { type: "text", placeholder: "sk-ant-…", value: keyInput, onChange: e => setKeyInput(e.target.value) })
+        ),
+        h("div", { className: "ctl" },
+          h("label", null, "Model"),
+          h("select", { value: model, onChange: e => setModel(e.target.value) },
+            MODELS.map(m => h("option", { key: m.value, value: m.value }, m.label))
+          )
+        )
+      ),
+      h("div", { className: "actions" },
+        h("button", { className: "btn btn-primary", onClick: handleSaveKey, disabled: !keyInput.trim() }, "Connect")
+      ),
+      h("p", { className: "keynote" }, "Your key stays in this browser tab's memory only — never saved to disk, never sent anywhere except directly to Anthropic. You'll re-enter it next time you open this page. This uses Anthropic's official browser-direct access header, a supported \"bring your own key\" pattern.")
+    ) : h("div", null,
+
+      h("div", { className: "panel" },
+        h("h2", null, "Your book's brief"),
+        h("p", { className: "sub" }, "Pick presets or choose Custom… to write your own."),
+        h("div", { className: "form-grid" },
+          h("div", { className: "ctl" },
+            h("label", null, "Age group"),
+            h("select", { value: ageGroup, onChange: e => setAgeGroup(e.target.value) },
+              AGE_PRESETS.map(a => h("option", { key: a, value: a }, a))
+            )
+          ),
+          ageGroup === "Custom…" ? h("div", { className: "ctl" },
+            h("label", null, "Custom age group"),
+            h("input", { type: "text", placeholder: "e.g. 5–7 year olds", value: ageCustom, onChange: e => setAgeCustom(e.target.value) })
+          ) : null,
+          h("div", { className: "ctl" },
+            h("label", null, "Number of pages"),
+            h("input", { type: "number", min: 4, max: 24, value: numPages, onChange: e => setNumPages(e.target.value) })
+          )
+        ),
+        h("div", { className: "form-grid" },
+          h("div", { className: "ctl full" },
+            h("label", null, "Topic / main character"),
+            h("select", { value: topic, onChange: e => setTopic(e.target.value) },
+              TOPIC_PRESETS.map(t => h("option", { key: t, value: t }, t))
+            )
+          ),
+          topic === "Custom…" ? h("div", { className: "ctl full" },
+            h("label", null, "Custom topic / character"),
+            h("textarea", { rows: 2, placeholder: "e.g. A curious octopus who collects lost buttons", value: topicCustom, onChange: e => setTopicCustom(e.target.value) })
+          ) : null
+        ),
+        h("div", { className: "form-grid" },
+          h("div", { className: "ctl full" },
+            h("label", null, "Moral / lesson"),
+            h("select", { value: moral, onChange: e => setMoral(e.target.value) },
+              MORAL_PRESETS.map(m => h("option", { key: m, value: m }, m))
+            )
+          ),
+          moral === "Custom…" ? h("div", { className: "ctl full" },
+            h("label", null, "Custom moral"),
+            h("input", { type: "text", placeholder: "e.g. Patience is worth it", value: moralCustom, onChange: e => setMoralCustom(e.target.value) })
+          ) : null
+        ),
+        h("div", { className: "form-grid" },
+          h("div", { className: "ctl full" },
+            h("label", null, "Illustration art style (used in every prompt)"),
+            h("select", { value: artStyle, onChange: e => setArtStyle(e.target.value) },
+              STYLE_PRESETS.map(s => h("option", { key: s, value: s }, s))
+            )
+          ),
+          artStyle === "Custom…" ? h("div", { className: "ctl full" },
+            h("label", null, "Custom art style"),
+            h("input", { type: "text", placeholder: "e.g. Claymation-style, stop-motion look, storybook", value: artCustom, onChange: e => setArtCustom(e.target.value) })
+          ) : null
+        ),
+        h("div", { className: "actions" },
+          h("button", { className: "btn btn-primary", onClick: handleGenerate, disabled: !canGenerate || loading }, loading ? "Writing…" : "✨ Write My Book"),
+          h("button", { className: "btn-text", onClick: () => setApiKey("") }, "Change API key")
+        )
+      ),
+
+      loading ? h("div", { className: "status-box" }, loadingMsg, " This can take a minute for longer books.") : null,
+      error ? h("div", { className: "status-box error" }, error) : null,
+
+      book ? h("div", null,
+        h("div", { className: "anchor-box" },
+          h("div", { className: "label" }, "Picture Book"),
+          h("h2", { className: "title" }, book.title),
+          h("div", { className: "desc" }, h("strong", null, "🔑 Character anchor: "), book.anchorDescription)
+        ),
+        h("div", { className: "book-toolbar" },
+          h("button", { className: "btn btn-secondary", onClick: copyAllPrompts }, "📋 Copy all illustration prompts"),
+          h("button", { className: "btn btn-secondary", onClick: downloadBook }, "⬇ Download book as text"),
+          h("button", { className: "btn btn-secondary", onClick: handleGenerate, disabled: loading }, "🔄 Regenerate")
+        ),
+        book.pages.map(p => h(PageCard, { key: p.page, page: p }))
+      ) : null
+    ),
+
+    h("div", { className: "disclaimer" },
+      h("strong", null, "About this tool: "),
+      "TaleBoard calls the Anthropic API directly from your browser using your own key, via Anthropic's official browser-direct-access header — a supported \"bring your own key\" pattern, not a workaround. Each book is a single API call; cost depends on the model and page count you choose (Haiku is cheapest, Opus is priciest). Illustration prompts are written for you to paste into an image generator of your choice (Midjourney, DALL·E, Stable Diffusion, etc.) — TaleBoard doesn't generate images itself. The model occasionally returns malformed output on longer books; if generation fails, regenerating usually resolves it. Review any generated story before sharing it with a child, the same way you'd review any other AI-written content."
+    )
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(h(App));
+</script>
+</body>
+</html>

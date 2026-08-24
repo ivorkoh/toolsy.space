@@ -231,6 +231,19 @@ const SEMI = [
   { key: "sndk", symbol: "SNDK", company: "SanDisk" }
 ];
 
+// Verified each symbol against real sources before hardcoding — SKHY in particular isn't a
+// well-known ticker, but is confirmed as SK hynix's real Nasdaq-listed ADR across multiple sources.
+const WATCHLIST = [
+  { key: "orcl", symbol: "ORCL", company: "Oracle" },
+  { key: "dell", symbol: "DELL", company: "Dell Technologies" },
+  { key: "skhy", symbol: "SKHY", company: "SK hynix (ADR)" },
+  { key: "ewy", symbol: "EWY", company: "South Korea (EWY ETF)" },
+  { key: "arm", symbol: "ARM", company: "Arm Holdings" },
+  { key: "asml", symbol: "ASML", company: "ASML Holding" },
+  { key: "klac", symbol: "KLAC", company: "KLA Corporation" },
+  { key: "lite", symbol: "LITE", company: "Lumentum" }
+];
+
 // Researched and written by Claude via live web search on July 25, 2026 — this is a point-in-time
 // snapshot, not a live feed. It's embedded as static text rather than regenerated in-browser because
 // a live Claude API call from a self-hosted static page (outside claude.ai) generally can't authenticate,
@@ -465,15 +478,152 @@ function StockRow({ def, state, fundamentalsData }){
   );
 }
 
+/* ---------- Live research refresh via Gemini (BYOK, Google Search grounding) ----------
+   Twelve Data's fundamentals endpoint costs more per call than the free tier's entire
+   per-minute budget (confirmed earlier), SEC EDGAR explicitly disables CORS, and the finance
+   sites only expose data via paid scraping — so genuinely live fundamentals aren't available
+   for free. Instead, "Refresh Research" re-runs the same kind of research Claude did originally,
+   but live, via Gemini's free tier with Google Search grounding, triggered on demand (not
+   automatically) so you control when it spends API quota. */
+
+const GEMINI_MODEL = "gemini-2.5-flash";
+
+function buildResearchPrompt(companies, label){
+  const tickerList = companies.map(c => `${c.company} (${c.symbol})`).join(", ");
+  return `You are a financial research analyst. Using Google Search, find the latest publicly available data, as of today, for each of these ${label}: ${tickerList}.
+
+For EACH company, find:
+1. Trailing P/E ratio (a number, or a short string if not meaningful)
+2. A brief 1-2 sentence note on how that P/E compares to the company's own historical average
+3. PEG ratio (or "n/m" if not meaningful due to negative or shrinking earnings)
+4. Price-to-book (P/B) ratio
+5. ROIC (return on invested capital) — a percentage, or a brief qualitative note if unavailable
+6. Most recent free cash flow figure or trend (brief)
+7. Most recent earnings growth (YoY), or note if the company hasn't reported its latest quarter yet
+
+Also write:
+- One or two sentences summarizing the group's current overall market mood or theme, in a wry but factually accurate tone (not sensational, no investment advice)
+- For each company, one concise sentence about the primary driver of its recent stock performance, same tone
+
+Respond with ONLY valid JSON, no markdown fences, no commentary before or after, in exactly this shape:
+{
+  "asOf": "<today's date, e.g. August 5, 2026>",
+  "overall": "...",
+  "companies": {
+    "${companies[0].symbol}": { "pe": "...", "peHistory": "...", "peg": "...", "pb": "...", "roic": "...", "fcf": "...", "earningsGrowth": "...", "outlookNote": "..." }
+  }
+}
+Include an entry for every ticker listed above, keyed exactly by ticker symbol.`;
+}
+
+async function fetchGeminiResearch(apiKey, model, companies, label){
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent";
+  const prompt = buildResearchPrompt(companies, label);
+  let res;
+  try{
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        tools: [{ google_search: {} }],
+        generationConfig: { maxOutputTokens: 4000 }
+      })
+    });
+  }catch(e){
+    logApiError("Gemini network failure (" + label + ")", e);
+    throw new Error("Couldn't reach the Gemini API (" + e.message + "). Check your internet connection and try again.");
+  }
+  if(!res.ok){
+    const body = await res.text().catch(() => "");
+    logApiError("Gemini returned HTTP " + res.status + " (" + label + ")", body);
+    let msg = "HTTP " + res.status;
+    try{
+      const parsed = JSON.parse(body);
+      if(parsed.error && parsed.error.message) msg += " — " + parsed.error.message;
+    }catch(_e){ if(body) msg += " — " + body.slice(0, 200); }
+    if(res.status === 400 || res.status === 403) msg += " (check that your Gemini API key is correct and active)";
+    if(res.status === 429) msg += " (Gemini free-tier rate limit reached — wait a minute and try again)";
+    throw new Error(msg);
+  }
+  const data = await res.json();
+  const candidate = (data.candidates || [])[0];
+  const text = candidate && candidate.content && Array.isArray(candidate.content.parts)
+    ? candidate.content.parts.map(p => p.text || "").join("\n")
+    : "";
+  const clean = text.replace(/^```json\s*|^```\s*|```\s*$/gm, "").trim();
+  let parsed;
+  try{
+    parsed = JSON.parse(clean);
+  }catch(e){
+    logApiError("Failed to parse Gemini research JSON (" + label + ")", { raw: text, error: e.message });
+    throw new Error("Gemini's response wasn't valid JSON, so it couldn't be parsed. Try refreshing again — this occasionally happens with longer research responses.");
+  }
+  if(!parsed.companies){
+    logApiError("Gemini research JSON missing companies object (" + label + ")", parsed);
+    throw new Error("Gemini's response didn't include company data. Try refreshing again.");
+  }
+  return parsed;
+}
+
+
 function App(){
   const [apiKey, setApiKey] = useState("");
   const [keyInput, setKeyInput] = useState("");
   const [data, setData] = useState({}); // key -> { loading, error, quote }
   const [magData, setMagData] = useState({});
   const [semiData, setSemiData] = useState({});
+  const [watchlistData, setWatchlistData] = useState({});
   const [lastRefreshed, setLastRefreshed] = useState(null);
   const [loadingAll, setLoadingAll] = useState(false);
   const [loadProgress, setLoadProgress] = useState(null); // { done, total }
+
+  // Research data starts as the static, dated snapshot and can be replaced with a live
+  // Gemini-researched refresh (see "Refresh Research" below) — never automatic, always on click.
+  const [magResearch, setMagResearch] = useState({ asOf: FUNDAMENTALS.asOf, overall: DRAWDOWN_COMMENTARY.overall, fundamentals: FUNDAMENTALS.data, notes: DRAWDOWN_COMMENTARY.notes });
+  const [semiResearch, setSemiResearch] = useState({ asOf: SEMI_FUNDAMENTALS.asOf, overall: SEMI_OUTLOOK.overall, fundamentals: SEMI_FUNDAMENTALS.data, notes: SEMI_OUTLOOK.notes });
+  // No pre-researched static snapshot exists for this group — it starts empty and relies entirely
+  // on "Refresh Research" (honest starting point rather than a fabricated snapshot).
+  const [watchlistResearch, setWatchlistResearch] = useState({ asOf: null, overall: "", fundamentals: {}, notes: {} });
+  const [geminiKey, setGeminiKey] = useState("");
+  const [geminiKeyInput, setGeminiKeyInput] = useState("");
+  const [refreshingMag, setRefreshingMag] = useState(false);
+  const [refreshingSemi, setRefreshingSemi] = useState(false);
+  const [refreshingWatchlist, setRefreshingWatchlist] = useState(false);
+  const [magRefreshError, setMagRefreshError] = useState(null);
+  const [semiRefreshError, setSemiRefreshError] = useState(null);
+  const [watchlistRefreshError, setWatchlistRefreshError] = useState(null);
+
+  const handleSaveGeminiKey = () => {
+    const trimmed = geminiKeyInput.trim();
+    if(!trimmed) return;
+    setGeminiKey(trimmed);
+  };
+
+  const refreshResearch = async (companies, label, setLoading, setErr, setResult) => {
+    if(!geminiKey){ setErr("Connect a Gemini API key above first."); return; }
+    setLoading(true); setErr(null);
+    try{
+      const result = await fetchGeminiResearch(geminiKey, GEMINI_MODEL, companies, label);
+      const fundamentals = {}, notes = {};
+      companies.forEach(c => {
+        const entry = result.companies[c.symbol];
+        if(entry){
+          fundamentals[c.symbol] = { pe: entry.pe, peHistory: entry.peHistory, peg: entry.peg, pb: entry.pb, roic: entry.roic, fcf: entry.fcf, earningsGrowth: entry.earningsGrowth };
+          notes[c.symbol] = entry.outlookNote;
+        }
+      });
+      setResult({ asOf: result.asOf || new Date().toLocaleDateString(), overall: result.overall || "", fundamentals, notes });
+    }catch(e){
+      setErr(e.message);
+    }finally{
+      setLoading(false);
+    }
+  };
+
+  const refreshMagResearch = () => refreshResearch(MAG7, "Magnificent 7 stocks", setRefreshingMag, setMagRefreshError, setMagResearch);
+  const refreshSemiResearch = () => refreshResearch(SEMI, "US semiconductor stocks", setRefreshingSemi, setSemiRefreshError, setSemiResearch);
+  const refreshWatchlistResearch = () => refreshResearch(WATCHLIST, "tech and supply-chain stocks (Oracle, Dell, SK hynix, ASML, KLA, Lumentum, Arm, and the South Korea market)", setRefreshingWatchlist, setWatchlistRefreshError, setWatchlistResearch);
 
   // Twelve Data's free tier allows only 8 credits/minute, and each quote call costs 1 credit.
   // Firing all symbols in parallel blows straight through that, so we load them one at a
@@ -492,17 +642,21 @@ function App(){
     const initialSemi = {};
     SEMI.forEach(s => { initialSemi[s.key] = { loading: true, error: null, quote: null }; });
     setSemiData(initialSemi);
+    const initialWatchlist = {};
+    WATCHLIST.forEach(s => { initialWatchlist[s.key] = { loading: true, error: null, quote: null }; });
+    setWatchlistData(initialWatchlist);
 
     const tasks = [
       ...SYMBOLS.map(s => ({ kind: "index", def: s })),
       ...MAG7.map(s => ({ kind: "mag", def: s })),
-      ...SEMI.map(s => ({ kind: "semi", def: s }))
+      ...SEMI.map(s => ({ kind: "semi", def: s })),
+      ...WATCHLIST.map(s => ({ kind: "watchlist", def: s }))
     ];
     setLoadProgress({ done: 0, total: tasks.length });
 
     for(let i = 0; i < tasks.length; i++){
       const { kind, def } = tasks[i];
-      const setForKind = kind === "index" ? setData : kind === "mag" ? setMagData : setSemiData;
+      const setForKind = kind === "index" ? setData : kind === "mag" ? setMagData : kind === "semi" ? setSemiData : setWatchlistData;
       try{
         const quote = await fetchQuoteWithHigh(def.symbol, key);
         setForKind(prev => ({ ...prev, [def.key]: { loading: false, error: null, quote } }));
@@ -572,8 +726,18 @@ function App(){
         ),
         h("button", { className: "btn-text", onClick: handleChangeKey }, "Change API key"),
         lastRefreshed ? h("span", { className: "updated" }, "Last updated ", lastRefreshed.toLocaleTimeString()) : null,
-        loadingAll ? h("span", { className: "updated" }, "(throttled to stay under the free-tier rate limit — takes a couple of minutes)") : null
+        loadingAll ? h("span", { className: "updated" }, "(throttled to stay under the free-tier rate limit — takes a few minutes for 25 symbols)") : null
       ),
+
+      !geminiKey ? h("div", { className: "keybox" },
+        h("h2", { className: "serif", style: { fontSize: "1.1rem" } }, "Connect Gemini for live research (optional)"),
+        h("p", { style: { fontSize: "0.85rem" } }, "The P/E, PEG, P/B, ROIC, FCF, and Earnings Growth panels below start from a dated snapshot. To refresh them with live research on demand, connect a free Gemini API key from ", h("a", { href: "https://aistudio.google.com/apikey", target: "_blank", rel: "noopener" }, "aistudio.google.com"), " — separate from your Twelve Data key above, since it's a different provider."),
+        h("div", { className: "keyrow" },
+          h("input", { type: "text", placeholder: "Paste your Gemini API key here", value: geminiKeyInput, onChange: e => setGeminiKeyInput(e.target.value) }),
+          h("button", { className: "btn btn-primary", onClick: handleSaveGeminiKey, disabled: !geminiKeyInput.trim() }, "Connect")
+        ),
+        h("p", { className: "note" }, "Kept in this tab's memory only, same as your Twelve Data key — never saved to disk. Nothing regenerates automatically; each \"Refresh Research\" click is one Gemini API call, within its generous free tier.")
+      ) : null,
 
       h("div", { className: "table-wrap" },
         h("table", { className: "idx-table" },
@@ -610,20 +774,21 @@ function App(){
             )
           ),
           h("tbody", null,
-            MAG7.map(s => h(StockRow, { key: s.key, def: s, state: magData[s.key] || { loading: true }, fundamentalsData: FUNDAMENTALS.data }))
+            MAG7.map(s => h(StockRow, { key: s.key, def: s, state: magData[s.key] || { loading: true }, fundamentalsData: magResearch.fundamentals }))
           )
         )
       ),
 
       h("div", { className: "mood-box" },
         h("h2", { className: "serif" }, "📐 P/E vs. Each Company's Own History"),
-        h("p", { className: "mood-asof" }, "Researched and written by Claude via live web search — as of ", FUNDAMENTALS.asOf, ". A point-in-time snapshot, not a live feed."),
+        h("p", { className: "mood-asof" }, "Researched as of ", magResearch.asOf, ". ", h("button", { className: "btn-text", onClick: refreshMagResearch, disabled: refreshingMag }, refreshingMag ? "Refreshing…" : "🔄 Refresh Research")),
+        magRefreshError ? h("div", { className: "status-box error", style: { marginBottom: "14px" } }, magRefreshError) : null,
         h("p", { style: { color: "var(--ink-soft)", fontSize: "0.88rem", marginBottom: "16px" } },
           "A high P/E alone doesn't say much — what matters more is how it compares to the company's own typical range. A stock that's dropped can still be expensive if its P/E remains well above its historical norm, and a stock trading at a high absolute P/E can still be reasonably priced if that's actually low for its own history."
         ),
         h("ul", { className: "mood-list" },
           MAG7.map(s => {
-            const f = FUNDAMENTALS.data[s.symbol];
+            const f = magResearch.fundamentals[s.symbol];
             return h("li", { key: s.key },
               h("span", { className: "mood-company" }, s.company, " "),
               h("span", { className: "mood-note" }, f ? f.peHistory : "No data available.")
@@ -634,12 +799,12 @@ function App(){
 
       h("div", { className: "mood-box" },
         h("h2", { className: "serif" }, "🗞️ What's Behind the Pullback"),
-        h("p", { className: "mood-asof" }, "Researched and written by Claude via live web search — as of ", DRAWDOWN_COMMENTARY.asOf, ". A point-in-time snapshot, not a live feed."),
-        h("p", { className: "mood-overall serif" }, DRAWDOWN_COMMENTARY.overall),
+        h("p", { className: "mood-asof" }, "Researched as of ", magResearch.asOf, ". A snapshot from your last refresh, not a live feed — click Refresh Research above for the latest."),
+        h("p", { className: "mood-overall serif" }, magResearch.overall),
         h("ul", { className: "mood-list" },
           MAG7.map(s => h("li", { key: s.key },
             h("span", { className: "mood-company" }, s.company, " "),
-            h("span", { className: "mood-note" }, DRAWDOWN_COMMENTARY.notes[s.symbol] || "No commentary available.")
+            h("span", { className: "mood-note" }, magResearch.notes[s.symbol] || "No commentary available.")
           ))
         )
       ),
@@ -664,19 +829,61 @@ function App(){
             )
           ),
           h("tbody", null,
-            SEMI.map(s => h(StockRow, { key: s.key, def: s, state: semiData[s.key] || { loading: true }, fundamentalsData: SEMI_FUNDAMENTALS.data }))
+            SEMI.map(s => h(StockRow, { key: s.key, def: s, state: semiData[s.key] || { loading: true }, fundamentalsData: semiResearch.fundamentals }))
           )
         )
       ),
 
       h("div", { className: "mood-box" },
         h("h2", { className: "serif" }, "🔬 Contributing Factors & Outlook"),
-        h("p", { className: "mood-asof" }, "Researched and written by Claude via live web search — as of ", SEMI_OUTLOOK.asOf, ". A point-in-time snapshot, not a live feed."),
-        h("p", { className: "mood-overall serif" }, SEMI_OUTLOOK.overall),
+        h("p", { className: "mood-asof" }, "Researched as of ", semiResearch.asOf, ". ", h("button", { className: "btn-text", onClick: refreshSemiResearch, disabled: refreshingSemi }, refreshingSemi ? "Refreshing…" : "🔄 Refresh Research")),
+        semiRefreshError ? h("div", { className: "status-box error", style: { marginBottom: "14px" } }, semiRefreshError) : null,
+        h("p", { className: "mood-overall serif" }, semiResearch.overall),
         h("ul", { className: "mood-list" },
           SEMI.map(s => h("li", { key: s.key },
             h("span", { className: "mood-company" }, s.company, " "),
-            h("span", { className: "mood-note" }, SEMI_OUTLOOK.notes[s.symbol] || "No commentary available.")
+            h("span", { className: "mood-note" }, semiResearch.notes[s.symbol] || "No commentary available.")
+          ))
+        )
+      ),
+
+      h("h2", { className: "serif section-title" }, "Tech & Supply Chain Watchlist: Drawdown From 52-Week High"),
+      h("p", { style: { color: "var(--ink-soft)", fontSize: "0.88rem", marginTop: "-8px", marginBottom: "14px" } }, "Enterprise tech (Oracle, Dell), Korean memory exposure (SK hynix, and the broader South Korea market via EWY), and chip equipment / photonics (Arm, ASML, KLA, Lumentum)."),
+      h("div", { className: "table-wrap" },
+        h("table", { className: "idx-table" },
+          h("thead", null,
+            h("tr", null,
+              h("th", null, "Company"),
+              h("th", null, "Ticker"),
+              h("th", { className: "num" }, "Close"),
+              h("th", { className: "num" }, "52-Week High"),
+              h("th", { className: "num" }, "Drawdown"),
+              h("th", { className: "num" }, "P/E"),
+              h("th", { className: "num" }, "PEG"),
+              h("th", { className: "num" }, "P/B"),
+              h("th", { className: "num" }, "ROIC"),
+              h("th", null, "Free Cash Flow"),
+              h("th", null, "Earnings Growth")
+            )
+          ),
+          h("tbody", null,
+            WATCHLIST.map(s => h(StockRow, { key: s.key, def: s, state: watchlistData[s.key] || { loading: true }, fundamentalsData: watchlistResearch.fundamentals }))
+          )
+        )
+      ),
+
+      h("div", { className: "mood-box" },
+        h("h2", { className: "serif" }, "🔬 Contributing Factors & Outlook"),
+        h("p", { className: "mood-asof" },
+          watchlistResearch.asOf ? "Researched as of " + watchlistResearch.asOf + ". " : "No research yet for this group — ",
+          h("button", { className: "btn-text", onClick: refreshWatchlistResearch, disabled: refreshingWatchlist }, refreshingWatchlist ? "Refreshing…" : "🔄 Refresh Research")
+        ),
+        watchlistRefreshError ? h("div", { className: "status-box error", style: { marginBottom: "14px" } }, watchlistRefreshError) : null,
+        watchlistResearch.overall ? h("p", { className: "mood-overall serif" }, watchlistResearch.overall) : null,
+        h("ul", { className: "mood-list" },
+          WATCHLIST.map(s => h("li", { key: s.key },
+            h("span", { className: "mood-company" }, s.company, " "),
+            h("span", { className: "mood-note" }, watchlistResearch.notes[s.symbol] || "No commentary yet — click Refresh Research above.")
           ))
         )
       )
@@ -684,7 +891,7 @@ function App(){
 
     h("div", { className: "disclaimer" },
       h("strong", null, "About this data: "),
-      "Prices come from Twelve Data's free tier and may be delayed rather than real-time tick data, and are fetched one symbol at a time with a short pause between each — the free tier allows only 8 requests per minute, and this tool now tracks 17 symbols per refresh (3 indexes, 7 Magnificent 7, 7 semiconductor stocks), so a full load takes a couple of minutes. \"52-Week High\" is Twelve Data's own computed trailing-52-week high for the symbol, returned directly by their quote endpoint. All three indexes are shown via their most widely-tracked ETF (SPY for the S&P 500, QQQ for the Nasdaq 100, URTH for MSCI World) rather than the raw index value — a deliberate choice for consistency and free-tier reliability, since raw index symbols are inconsistently available (or paywalled) across data providers, while these ETFs are freely quotable and track their index closely, if not identically (small tracking difference from fees). P/E, PEG, P/B, ROIC, Free Cash Flow, and Earnings Growth for both the Magnificent 7 and the semiconductor table are a static, dated snapshot researched by Claude via web search — like the outlook commentary boxes, not a live feed. We looked into live options for these specifically (Twelve Data's fundamentals endpoint, SEC EDGAR, Macrotrends, StockAnalysis.com) and none offer free, direct browser access: SEC EDGAR explicitly disables CORS for cross-origin requests, Twelve Data's fundamentals cost more per call than the free tier's entire per-minute budget, and the finance sites only expose data through paid third-party scraping services. Figures are cross-referenced across multiple sources and rounded where possible; where a reliable number genuinely couldn't be found, that's marked \"est.\" or described qualitatively rather than invented (\"n/m\" = not meaningful, shown for Tesla's PEG since shrinking earnings break the calculation). Microsoft and Meta report their latest quarter on Jul 29, and Apple and Amazon on Jul 30 — as of the Mag 7 snapshot's research date, those four show \"Reports [date]\" rather than an actual figure. Intel's P/E and PEG are flagged as dated (April 2026), since they predate the large first-half rally described in the outlook note below — a case where the number and the narrative diverge, worth reading together rather than at face value alone. None of this updates automatically and none of it should be read as current data or investment advice."
+      "Prices come from Twelve Data's free tier and may be delayed rather than real-time tick data, and are fetched one symbol at a time with a short pause between each — the free tier allows only 8 requests per minute, and this tool now tracks 25 symbols per refresh (3 indexes, 7 Magnificent 7, 7 semiconductor stocks, 8 in the tech/supply-chain watchlist), so a full load takes a few minutes. \"52-Week High\" is Twelve Data's own computed trailing-52-week high for the symbol, returned directly by their quote endpoint. All three indexes are shown via their most widely-tracked ETF (SPY for the S&P 500, QQQ for the Nasdaq 100, URTH for MSCI World) rather than the raw index value — a deliberate choice for consistency and free-tier reliability, since raw index symbols are inconsistently available (or paywalled) across data providers, while these ETFs are freely quotable and track their index closely, if not identically (small tracking difference from fees). P/E, PEG, P/B, ROIC, Free Cash Flow, and Earnings Growth for the Magnificent 7 and semiconductor tables start from a dated snapshot and can be updated by clicking \"Refresh Research,\" which calls Gemini (with your own free API key) to re-research live via Google Search — never automatic, so it only spends your API quota when you ask. We looked into fully live options first (Twelve Data's fundamentals endpoint, SEC EDGAR, Macrotrends, StockAnalysis.com) and none offer free, direct browser access: SEC EDGAR explicitly disables CORS for cross-origin requests, Twelve Data's fundamentals cost more per call than the free tier's entire per-minute budget, and the finance sites only expose data through paid third-party scraping services. Whether from the original snapshot or a refresh, figures can vary by source (trailing vs. forward P/E, differing growth-rate assumptions for PEG) and are approximate rather than exact (\"n/m\" = not meaningful, e.g. for a company with shrinking earnings that breaks the PEG calculation). None of this is investment advice, and any AI-researched figure — original or refreshed — should be treated as a starting point to verify, not a guaranteed-current data feed."
     )
   );
 }

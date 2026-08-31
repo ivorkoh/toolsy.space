@@ -244,46 +244,40 @@ const WATCHLIST = [
   { key: "lite", symbol: "LITE", company: "Lumentum" }
 ];
 
-// Researched and written by Claude via live web search on July 25, 2026 — this is a point-in-time
+// Researched and written by Claude via live web search on August 27, 2026 — this is a point-in-time
 // snapshot, not a live feed. It's embedded as static text rather than regenerated in-browser because
 // a live Claude API call from a self-hosted static page (outside claude.ai) generally can't authenticate,
-// so it would silently fail after download. Re-ask Claude to refresh this if you want a later snapshot.
+// so it would silently fail after download. Use the "Refresh Research" button on this page (Gemini,
+// your own key) for a live update, or re-ask Claude to refresh this snapshot directly.
 const DRAWDOWN_COMMENTARY = {
-  asOf: "July 25, 2026",
-  overall: "The AI trade the Magnificent Seven built their premiums on is now the thing dragging them down — every member of the group is still sitting in double-digit territory below its 52-week high, undone less by weak results than by spending plans investors have stopped wanting to underwrite.",
+  asOf: "August 27, 2026",
+  overall: "All four Magnificent Seven earnings that were pending in late July have now reported, and the results split the group in two: Apple, Microsoft, and Amazon delivered real strength (even where headline numbers were flattered by one-time gains), while Meta's outright miss and 10% drop showed the market has stopped giving AI spending the benefit of the doubt.",
   notes: {
-    AAPL: "The lone bright spot of the group — up sharply this year largely because it has mostly sat out the AI capital-spending arms race, and for once the market is rewarding restraint instead of punishing it for falling behind.",
-    MSFT: "The group's worst performer, weighed down by a slowing software business and mounting doubt that its enormous AI data-center spending will earn back its cost anytime soon.",
-    GOOGL: "Beat on both revenue and profit and still sold off hard, after raising its 2026 capex forecast toward the $200 billion mark — proof that strong earnings alone no longer satisfy a market fixated on spending discipline.",
-    AMZN: "Caught in the same capex crossfire as Alphabet and Tesla, with free cash flow squeezed hard by its own AI infrastructure build-out even as core cloud growth continues to hold up.",
+    AAPL: "Beat on both revenue (+16% YoY) and EPS (+29% YoY) for its June quarter, but shares still fell roughly 4% on a Greater China revenue miss and softer Services growth — a reminder that beating estimates isn't the same as beating every line item investors are watching.",
+    MSFT: "Crossed a closely-watched Azure revenue milestone in its latest quarter and shares jumped roughly 8% on the report — a sharp reversal from the doubt that had been weighing on the stock through the summer.",
+    GOOGL: "Reported EPS of $9.11 against $2.88 expected, but roughly $98 billion of that was a one-time unrealized gain (mainly its SpaceX stake) — underlying growth was still solid, though the stock has fallen sharply since on the same AI capex concerns that hit it back in July.",
+    AMZN: "Posted its first-ever $200 billion quarter (revenue +19.6% YoY) with AWS growing 37% — its fastest pace in 18 quarters — though the headline EPS beat was flattered by a one-time $53.4 billion gain tied to its Anthropic stake, and free cash flow turned negative as capex hit $54.2 billion for the quarter.",
     NVDA: "Comparatively resilient, but lately overshadowed as investor attention drifts toward the memory-chip makers supplying the very data centers Nvidia's customers are racing to build.",
-    META: "Treading water while the market waits nervously for its next earnings report to see whether its AI infrastructure spending will trigger the same reaction that just hit Alphabet and Tesla.",
+    META: "The one real disappointment of the group — EPS missed outright ($6.18 versus $7.22 expected) as net income fell 14% year-over-year on one-time legal and severance charges, and shares dropped about 10% on the report.",
     TSLA: "Hit hardest of all, after swinging to negative free cash flow and confirming a sharply higher 2026 capital-spending plan for robotics and AI infrastructure — with execution details still thin on the ground."
   }
 };
 
-// Researched by Claude via live web search on July 27, 2026 — same static-snapshot approach as the
-// drawdown commentary above, for the same reason: these figures move daily and differ by data
-// provider (trailing vs. forward P/E, differing growth-rate assumptions for PEG), so presenting them
-// as a precisely "live" feed would overstate their precision. P/E is trailing, from a single coherent
-// source (Yahoo Finance data via a July 27, 2026 snapshot) for internal consistency across all seven.
-// PEG and P/B are rounded estimates cross-referenced across multiple sources, not exact figures.
-// ROIC is from GuruFocus's Q1 2026 (quarter ended Mar 2026) figures for MSFT/GOOGL/AMZN/META/TSLA,
-// for internal consistency across those five; AAPL and NVDA are from separate sources (financecharts.com
-// and fffinstill respectively) since GuruFocus figures for those two weren't available in this search.
-// FCF and Earnings Growth are a genuine mix of actual-reported and analyst-estimate figures, since
-// Microsoft and Meta report their latest quarter today (Jul 29) and Apple and Amazon tomorrow (Jul 30) —
-// each is labeled so you can tell which is which. Tesla's figures below reflect its Q2 2026 report,
-// released Jul 28 — the freshest data point in this set.
+// Researched by Claude via live web search on August 27, 2026 — refreshed from the July 27 snapshot
+// now that Apple, Microsoft, Alphabet, Amazon, and Meta have all reported the quarter that was
+// previously pending. Same caveats as before: P/E is trailing and from a single source where possible
+// for comparability; PEG and P/B are rounded estimates cross-referenced across multiple sources, not
+// exact figures; ROIC is mostly GuruFocus (Q1 2026) for consistency, with AAPL and NVDA from separate
+// sources. Nvidia and Tesla's figures are unchanged from July since neither has reported since then.
 const FUNDAMENTALS = {
-  asOf: "July 27, 2026",
+  asOf: "August 27, 2026",
   data: {
-    AAPL: { pe: 33.0, peHistory: "Roughly in line with its own 5-year average — the rally hasn't stretched its multiple much, since Apple sat out the AI capex spree.", peg: "~2.0", pb: "~45x", roic: "49.7%", fcf: "$129B+ TTM", earningsGrowth: "Reports Jul 30" },
-    MSFT: { pe: 25.3, peHistory: "Below its own recent (post-2023) average, which had often run in the low-30s — the sell-off has pulled its multiple down relative to its own history.", peg: "~1.8", pb: "~10x", roic: "20.9%", fcf: "~$25B est. (FY26, down from $58.7B)", earningsGrowth: "Reports Jul 29" },
-    GOOGL: { pe: 28.6, peHistory: "Above its own historical norm — Alphabet has usually traded at a discount to Mag 7 peers, often in the low-to-mid 20s, so this is a real re-rating upward.", peg: "~1.0–1.3", pb: "~8x", roic: "27.8%", fcf: "–$5.9B (Q2, negative — first time ever)", earningsGrowth: "Cloud +82% YoY; beat" },
-    AMZN: { pe: 29.7, peHistory: "Actually low relative to its own long-run history — Amazon has often traded far higher (50x+) when it was still suppressing earnings to reinvest; today's multiple reflects genuine profit maturity.", peg: "~2.2", pb: "~7–8x", roic: "11.2%", fcf: "Pressured (est.)", earningsGrowth: "Reports Jul 30" },
+    AAPL: { pe: 33.0, peHistory: "Roughly in line with its own 5-year average — the rally hasn't stretched its multiple much, since Apple sat out the AI capex spree.", peg: "~2.0", pb: "~45x", roic: "49.7%", fcf: "$129B+ TTM", earningsGrowth: "EPS +29% YoY, revenue +16% YoY (FQ3, reported Jul 30) — beat, but shares fell ~4% on a Greater China and Services miss" },
+    MSFT: { pe: 25.3, peHistory: "Below its own recent (post-2023) average, which had often run in the low-30s — the sell-off has pulled its multiple down relative to its own history.", peg: "~1.8", pb: "~10x", roic: "20.9%", fcf: "$58.7B (FY26)", earningsGrowth: "Crossed a key Azure revenue milestone (FQ4, reported Jul 29) — shares jumped ~8% on the report" },
+    GOOGL: { pe: 28.6, peHistory: "Above its own historical norm — Alphabet has usually traded at a discount to Mag 7 peers, often in the low-to-mid 20s, so this is a real re-rating upward.", peg: "~1.0–1.3", pb: "~8x", roic: "27.8%", fcf: "–$5.9B (Q2, negative — first time ever)", earningsGrowth: "EPS $9.11 vs. $2.88 est. — but ~$98B was a one-time unrealized gain (SpaceX stake); underlying growth solid, shares still down sharply since on capex worries" },
+    AMZN: { pe: 29.7, peHistory: "Actually low relative to its own long-run history — Amazon has often traded far higher (50x+) when it was still suppressing earnings to reinvest; today's multiple reflects genuine profit maturity.", peg: "~2.2", pb: "~7–8x", roic: "11.2%", fcf: "–$7.6B TTM (Q2) — capex hit $54.2B for the quarter", earningsGrowth: "Revenue +19.6% YoY (first-ever $200B quarter); AWS +37% (fastest in 18 quarters); EPS beat flattered by a one-time $53.4B Anthropic-stake gain" },
     NVDA: { pe: 37.9, peHistory: "Toward the low end of its own 2–3 year AI-era range — earnings have grown even faster than the stock price.", peg: "<1.0", pb: "~40x+", roic: "61.8%", fcf: "$96.6B (FY26)", earningsGrowth: "+66.7% YoY net income" },
-    META: { pe: 27.8, peHistory: "Roughly in line with its post-2023 recovery-era average — not dramatically stretched, though this was measured just before its July 29 earnings report.", peg: "~0.6–1.3", pb: "~8–9x", roic: "32.4%", fcf: "~$1.9B est. (−95.7% YoY)", earningsGrowth: "Reports Jul 29" },
+    META: { pe: 27.8, peHistory: "Roughly in line with its post-2023 recovery-era average — not dramatically stretched.", peg: "~0.6–1.3", pb: "~8–9x", roic: "32.4%", fcf: "~$1.9B (−95.7% YoY)", earningsGrowth: "EPS missed ($6.18 vs. $7.22 est.); net income −14% YoY on one-time legal and severance charges — shares fell ~10%" },
     TSLA: { pe: 377.8, peHistory: "Elevated even by Tesla's own unusually wide historical range (which has swung from under 50x to 1000x+) — P/E is close to meaningless here given how earnings-thin the company currently is.", peg: "n/m", pb: "~15–16x", roic: "2.9%", fcf: "Negative (Q2)", earningsGrowth: "EPS −18% YoY (Q2, reported Jul 28)" }
   }
 };
@@ -320,6 +314,28 @@ const SEMI_OUTLOOK = {
     TXN: "Just delivered a genuine beat-and-raise quarter — EPS up 52% year-over-year — and the stock still fell on the news, a sign investors are demanding more than good results alone from a stock already priced for AI-adjacent demand in its analog and power-management chips.",
     MU: "At the center of the AI memory supercycle, with quarterly revenue up 345% year-over-year as HBM capacity sells out through the year — the historical risk with memory is that supercycles eventually become gluts, and this one is being priced as if that won't happen for years.",
     SNDK: "The single best-performing story in this group by a wide margin — up roughly 860% at its 2026 high — and also the most violent, having since dropped over 30% from that peak as the same memory-supercycle enthusiasm that drove the rally turned into supply-glut and China-competition anxiety almost overnight."
+  }
+};
+
+// Researched by Claude via live web search on August 27, 2026 — first-time research for this group
+// (it previously started empty by design). Two honest edge cases worth flagging directly: SK hynix's
+// widely-reported P/E figure from at least one data provider comes out under 1.0, which is implausible
+// for a real company (would mean the market values it at less than one year's earnings) — almost
+// certainly a KRW/USD unit-conversion artifact, so it's described qualitatively here instead of restated
+// as fact. Dell reports its next quarter on Aug 28 — right around when this was researched — so its
+// figures are marked as pending rather than invented.
+const WATCHLIST_RESEARCH = {
+  asOf: "August 27, 2026",
+  overall: "This group spans three different AI-supply-chain stories at once — enterprise software riding AI-driven cloud demand (Oracle), the Korean memory duopoly living through the same supercycle as Micron and SanDisk (SK hynix), and the equipment and IP makers whose fortunes rise and fall with everyone else's capex (ASML, KLA, Lumentum, Arm) — with results ranging from statistically cheap to among the most expensive stocks in the entire market.",
+  data: {
+    ORCL: { pe: 24.4, peHistory: "Well below its own 10-year median PEG (1.23 vs. 2.79) — despite the AI narrative, Oracle actually screens statistically cheap relative to its own history, not expensive.", peg: "0.60", pb: "High (est. — small equity base relative to debt)", roic: "11.5%", fcf: "–$23.7B (FY26) — capex-driven, funding its cloud buildout", earningsGrowth: "Revenue +17.4% YoY, EPS +36.5% YoY (FY26)", outlookNote: "The cheapest-looking growth story in this group on a PEG basis, but that cheapness is precisely because the market is pricing in real execution risk on debt-funded, capex-heavy cloud expansion." },
+    DELL: { pe: "Pending — reports Aug 28", peHistory: "Not yet meaningful — wait for the report.", peg: "Pending", pb: "Pending", roic: "Pending", fcf: "Pending", earningsGrowth: "Reports Aug 28; consensus expects ~$29.4B revenue and $2.35 EPS, with AI-server demand the main swing factor", outlookNote: "Reports right around when this snapshot was taken — the most immediately time-sensitive row in this table. Refresh Research after Aug 28 for real numbers instead of consensus guesses." },
+    SKHY: { pe: "Data anomaly — some providers show under 1.0x, almost certainly a KRW/USD conversion artifact rather than a real multiple", peHistory: "Extremely volatile even by memory-cycle standards: +30% single-day surge, a 35% July decline, and a 9% drop on its own blowout Q2 report — the market seems more worried about supply-demand sustainability than current results.", peg: "Not reliably available", pb: "Not reliably available", roic: "Not reliably available, but profitability is currently extraordinary", fcf: "Record margins (76% operating margin, Q2) despite heavy HBM capex", earningsGrowth: "Revenue +257% YoY, net income +1,242% YoY (Q2 2026) — yet shares still fell ~9% on the report", outlookNote: "The most extreme number in this entire table (+1,242% net income growth) and also proof that extraordinary results don't guarantee a positive stock reaction when the market is already pricing in a supercycle." },
+    EWY: { pe: "N/A — broad-market ETF", peHistory: "Not applicable to a fund; its price action largely tracks sentiment on Samsung Electronics and SK hynix, its two largest holdings.", peg: "N/A", pb: "N/A", roic: "N/A", fcf: "N/A", earningsGrowth: "N/A — tracks roughly 100 South Korea large/mid-cap stocks", outlookNote: "Less a company than a proxy for how much conviction the market currently has in Korea's memory-chip duopoly — worth watching alongside SK hynix's own row above, not instead of it." },
+    ARM: { pe: "~205x — among the most expensive stocks in this table", peHistory: "Consistently one of the priciest stocks in this group for years, not a recent spike — reflects the market's view of Arm's licensing-royalty growth runway rather than a new re-rating.", peg: "~6+ (historically rich relative to growth per most sources)", pb: "~25x+ (elevated)", roic: "Modest relative to its lofty valuation (precise figure not found)", fcf: "Profitable but small relative to market cap", earningsGrowth: "~20–30% (analyst estimates; profits growing off a small base)", outlookNote: "The clearest case in this table of a stock priced for a very long, very confident growth story — small disappointments here would have further to fall than almost anything else in this group." },
+    ASML: { pe: "~30–36x (range across sources)", peHistory: "Trailing EPS growth of just +7.2% YoY sits well below its own 3-year average of +20.5% — a PEG of 2.68 (vs. a more typical historical range) suggests the market is paying a premium for growth that has actually slowed.", peg: "2.68", pb: "Not reliably sourced this round", roic: "Not reliably sourced this round", fcf: "Historically strong and consistent (precise current figure not found)", earningsGrowth: "+7.2% YoY (latest quarter) — well below its own 3-year average of +20.5%", outlookNote: "A rare case in this table where the valuation looks more stretched relative to its OWN history than relative to peers — worth watching if lithography demand growth doesn't reaccelerate." },
+    KLAC: { pe: "~54x", peHistory: "Not reliably sourced this round.", peg: "Not reliably sourced this round", pb: "Not reliably sourced this round", roic: "Structurally strong (precise figure not found) — high-margin equipment leader", fcf: "Typically strong and consistent (precise current figure not found)", earningsGrowth: "Not reliably sourced this round", outlookNote: "The least-researched row in this table this round — only P/E was confidently sourced. Click Refresh Research for a fuller picture." },
+    LITE: { pe: "~155x (high, but see PEG)", peHistory: "Just delivered a beat-and-raise quarter (EPS +9.5% vs. estimate) with revenue more than doubling year-over-year — a PEG under 1.0 suggests the market hasn't fully priced in how fast this growth actually is.", peg: "0.94", pb: "Not reliably sourced this round", roic: "Not reliably sourced this round", fcf: "Improving alongside the revenue ramp (precise figure not found)", earningsGrowth: "Revenue +109% YoY, EPS $3.23 vs. $2.95 est. (Q4 FY26) — shares rallied toward 52-week highs on the report", outlookNote: "The most textbook 'growth at a reasonable price' story in this table by the numbers (PEG under 1.0 despite a triple-digit headline P/E) — the optical-components pick-and-shovel play on AI datacenter buildouts." }
   }
 };
 
@@ -584,7 +600,15 @@ function App(){
   const [semiResearch, setSemiResearch] = useState({ asOf: SEMI_FUNDAMENTALS.asOf, overall: SEMI_OUTLOOK.overall, fundamentals: SEMI_FUNDAMENTALS.data, notes: SEMI_OUTLOOK.notes });
   // No pre-researched static snapshot exists for this group — it starts empty and relies entirely
   // on "Refresh Research" (honest starting point rather than a fabricated snapshot).
-  const [watchlistResearch, setWatchlistResearch] = useState({ asOf: null, overall: "", fundamentals: {}, notes: {} });
+  const [watchlistResearch, setWatchlistResearch] = useState(() => {
+    const fundamentals = {}, notes = {};
+    Object.keys(WATCHLIST_RESEARCH.data).forEach(symbol => {
+      const entry = WATCHLIST_RESEARCH.data[symbol];
+      fundamentals[symbol] = { pe: entry.pe, peHistory: entry.peHistory, peg: entry.peg, pb: entry.pb, roic: entry.roic, fcf: entry.fcf, earningsGrowth: entry.earningsGrowth };
+      notes[symbol] = entry.outlookNote;
+    });
+    return { asOf: WATCHLIST_RESEARCH.asOf, overall: WATCHLIST_RESEARCH.overall, fundamentals, notes };
+  });
   const [geminiKey, setGeminiKey] = useState("");
   const [geminiKeyInput, setGeminiKeyInput] = useState("");
   const [refreshingMag, setRefreshingMag] = useState(false);
@@ -721,12 +745,26 @@ function App(){
       ) : null,
 
       h("div", { className: "toolbar" },
-        h("button", { className: "btn btn-secondary", onClick: () => loadAll(apiKey), disabled: loadingAll },
+        h("button", {
+          className: "btn btn-secondary",
+          onClick: () => {
+            loadAll(apiKey);
+            // Tie research refresh to the main price refresh, but only if a Gemini key is already
+            // connected — this keeps data fresh without ever spending API quota you haven't opted into.
+            if(geminiKey){
+              refreshMagResearch();
+              refreshSemiResearch();
+              refreshWatchlistResearch();
+            }
+          },
+          disabled: loadingAll
+        },
           loadingAll && loadProgress ? "Loading " + loadProgress.done + " of " + loadProgress.total + "…" : "↻ Refresh"
         ),
         h("button", { className: "btn-text", onClick: handleChangeKey }, "Change API key"),
         lastRefreshed ? h("span", { className: "updated" }, "Last updated ", lastRefreshed.toLocaleTimeString()) : null,
-        loadingAll ? h("span", { className: "updated" }, "(throttled to stay under the free-tier rate limit — takes a few minutes for 25 symbols)") : null
+        loadingAll ? h("span", { className: "updated" }, "(throttled to stay under the free-tier rate limit — takes a few minutes for 25 symbols)") : null,
+        geminiKey ? h("span", { className: "updated" }, "(Refresh also updates research, since Gemini is connected)") : null
       ),
 
       !geminiKey ? h("div", { className: "keybox" },

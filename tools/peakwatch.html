@@ -201,7 +201,7 @@
 </div>
 
 <script>
-const { useState, useCallback } = React;
+const { useState, useCallback, useEffect } = React;
 const h = React.createElement;
 
 const SYMBOLS = [
@@ -649,6 +649,17 @@ function App(){
   const refreshSemiResearch = () => refreshResearch(SEMI, "US semiconductor stocks", setRefreshingSemi, setSemiRefreshError, setSemiResearch);
   const refreshWatchlistResearch = () => refreshResearch(WATCHLIST, "tech and supply-chain stocks (Oracle, Dell, SK hynix, ASML, KLA, Lumentum, Arm, and the South Korea market)", setRefreshingWatchlist, setWatchlistRefreshError, setWatchlistResearch);
 
+  // Auto-fetch fresh research the moment a Gemini key is connected — this is the earliest point
+  // "on page load" can actually mean, since no key (and so no way to call the API) exists before
+  // that in a bring-your-own-key setup. Runs once per key connection, not on every render.
+  useEffect(() => {
+    if(geminiKey){
+      refreshMagResearch();
+      refreshSemiResearch();
+      refreshWatchlistResearch();
+    }
+  }, [geminiKey]);
+
   // Twelve Data's free tier allows only 8 credits/minute, and each quote call costs 1 credit.
   // Firing all symbols in parallel blows straight through that, so we load them one at a
   // time with a comfortable gap instead — slower, but it won't get rate-limited.
@@ -768,13 +779,13 @@ function App(){
       ),
 
       !geminiKey ? h("div", { className: "keybox" },
-        h("h2", { className: "serif", style: { fontSize: "1.1rem" } }, "Connect Gemini for live research (optional)"),
-        h("p", { style: { fontSize: "0.85rem" } }, "The P/E, PEG, P/B, ROIC, FCF, and Earnings Growth panels below start from a dated snapshot. To refresh them with live research on demand, connect a free Gemini API key from ", h("a", { href: "https://aistudio.google.com/apikey", target: "_blank", rel: "noopener" }, "aistudio.google.com"), " — separate from your Twelve Data key above, since it's a different provider."),
+        h("h2", { className: "serif", style: { fontSize: "1.1rem" } }, "Connect Gemini for live research"),
+        h("p", { style: { fontSize: "0.85rem" } }, "The P/E, PEG, P/B, ROIC, FCF, and Earnings Growth panels below start from a dated snapshot. Connecting a free Gemini API key from ", h("a", { href: "https://aistudio.google.com/apikey", target: "_blank", rel: "noopener" }, "aistudio.google.com"), " immediately fetches fresh research for all three tables (3 Gemini calls), then does the same each time you click the main Refresh button above — separate from your Twelve Data key, since it's a different provider."),
         h("div", { className: "keyrow" },
           h("input", { type: "text", placeholder: "Paste your Gemini API key here", value: geminiKeyInput, onChange: e => setGeminiKeyInput(e.target.value) }),
           h("button", { className: "btn btn-primary", onClick: handleSaveGeminiKey, disabled: !geminiKeyInput.trim() }, "Connect")
         ),
-        h("p", { className: "note" }, "Kept in this tab's memory only, same as your Twelve Data key — never saved to disk. Nothing regenerates automatically; each \"Refresh Research\" click is one Gemini API call, within its generous free tier.")
+        h("p", { className: "note" }, "Kept in this tab's memory only, same as your Twelve Data key — never saved to disk. Connecting spends 3 Gemini API calls right away (one per table) to pull current data — within its generous free tier, but worth knowing before you click Connect.")
       ) : null,
 
       h("div", { className: "table-wrap" },
@@ -929,7 +940,7 @@ function App(){
 
     h("div", { className: "disclaimer" },
       h("strong", null, "About this data: "),
-      "Prices come from Twelve Data's free tier and may be delayed rather than real-time tick data, and are fetched one symbol at a time with a short pause between each — the free tier allows only 8 requests per minute, and this tool now tracks 25 symbols per refresh (3 indexes, 7 Magnificent 7, 7 semiconductor stocks, 8 in the tech/supply-chain watchlist), so a full load takes a few minutes. \"52-Week High\" is Twelve Data's own computed trailing-52-week high for the symbol, returned directly by their quote endpoint. All three indexes are shown via their most widely-tracked ETF (SPY for the S&P 500, QQQ for the Nasdaq 100, URTH for MSCI World) rather than the raw index value — a deliberate choice for consistency and free-tier reliability, since raw index symbols are inconsistently available (or paywalled) across data providers, while these ETFs are freely quotable and track their index closely, if not identically (small tracking difference from fees). P/E, PEG, P/B, ROIC, Free Cash Flow, and Earnings Growth for the Magnificent 7 and semiconductor tables start from a dated snapshot and can be updated by clicking \"Refresh Research,\" which calls Gemini (with your own free API key) to re-research live via Google Search — never automatic, so it only spends your API quota when you ask. We looked into fully live options first (Twelve Data's fundamentals endpoint, SEC EDGAR, Macrotrends, StockAnalysis.com) and none offer free, direct browser access: SEC EDGAR explicitly disables CORS for cross-origin requests, Twelve Data's fundamentals cost more per call than the free tier's entire per-minute budget, and the finance sites only expose data through paid third-party scraping services. Whether from the original snapshot or a refresh, figures can vary by source (trailing vs. forward P/E, differing growth-rate assumptions for PEG) and are approximate rather than exact (\"n/m\" = not meaningful, e.g. for a company with shrinking earnings that breaks the PEG calculation). None of this is investment advice, and any AI-researched figure — original or refreshed — should be treated as a starting point to verify, not a guaranteed-current data feed."
+      "Prices come from Twelve Data's free tier and may be delayed rather than real-time tick data, and are fetched one symbol at a time with a short pause between each — the free tier allows only 8 requests per minute, and this tool now tracks 25 symbols per refresh (3 indexes, 7 Magnificent 7, 7 semiconductor stocks, 8 in the tech/supply-chain watchlist), so a full load takes a few minutes. \"52-Week High\" is Twelve Data's own computed trailing-52-week high for the symbol, returned directly by their quote endpoint. All three indexes are shown via their most widely-tracked ETF (SPY for the S&P 500, QQQ for the Nasdaq 100, URTH for MSCI World) rather than the raw index value — a deliberate choice for consistency and free-tier reliability, since raw index symbols are inconsistently available (or paywalled) across data providers, while these ETFs are freely quotable and track their index closely, if not identically (small tracking difference from fees). P/E, PEG, P/B, ROIC, Free Cash Flow, and Earnings Growth for all three stock tables are pulled live via Gemini (with your own free API key) using Google Search — automatically once you connect a key, and again each time you click the main Refresh button, so they stay current without a manual research step. Before connecting a key they show a dated fallback snapshot instead. We looked into fully live options first (Twelve Data's fundamentals endpoint, SEC EDGAR, Macrotrends, StockAnalysis.com) and none offer free, direct browser access: SEC EDGAR explicitly disables CORS for cross-origin requests, Twelve Data's fundamentals cost more per call than the free tier's entire per-minute budget, and the finance sites only expose data through paid third-party scraping services. Whether from the fallback snapshot or a live Gemini refresh, figures can vary by source (trailing vs. forward P/E, differing growth-rate assumptions for PEG) and are approximate rather than exact (\"n/m\" = not meaningful, e.g. for a company with shrinking earnings that breaks the PEG calculation). None of this is investment advice, and any AI-researched figure should be treated as a starting point to verify, not a guaranteed-current data feed."
     )
   );
 }

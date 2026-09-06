@@ -649,9 +649,17 @@ function App(){
   const refreshSemiResearch = () => refreshResearch(SEMI, "US semiconductor stocks", setRefreshingSemi, setSemiRefreshError, setSemiResearch);
   const refreshWatchlistResearch = () => refreshResearch(WATCHLIST, "tech and supply-chain stocks (Oracle, Dell, SK hynix, ASML, KLA, Lumentum, Arm, and the South Korea market)", setRefreshingWatchlist, setWatchlistRefreshError, setWatchlistResearch);
 
-  // Auto-fetch fresh research the moment a Gemini key is connected — this is the earliest point
-  // "on page load" can actually mean, since no key (and so no way to call the API) exists before
-  // that in a bring-your-own-key setup. Runs once per key connection, not on every render.
+  // Auto-fetch fresh research on page mount — if a key is already saved in state,
+  // this runs immediately so the first-time user sees current data, not stale snapshots.
+  useEffect(() => {
+    if(geminiKey){
+      refreshMagResearch();
+      refreshSemiResearch();
+      refreshWatchlistResearch();
+    }
+  }, []); // Run once on mount
+
+  // Also auto-refresh when the key changes (user pastes a new one or re-saves)
   useEffect(() => {
     if(geminiKey){
       refreshMagResearch();

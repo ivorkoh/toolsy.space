@@ -922,11 +922,11 @@ function App(){
       h("div", { className: "mood-box" },
         h("h2", { className: "serif" }, "🔬 Contributing Factors & Outlook"),
         h("p", { className: "mood-asof" },
-          watchlistResearch.asOf ? "Researched as of " + watchlistResearch.asOf + ". " : "No research yet for this group — ",
+          watchlistResearch?.asOf ? "Researched as of " + watchlistResearch.asOf + ". " : "No research yet for this group — ",
           h("button", { className: "btn-text", onClick: refreshWatchlistResearch, disabled: refreshingWatchlist }, refreshingWatchlist ? "Refreshing…" : "🔄 Refresh Research")
         ),
         watchlistRefreshError ? h("div", { className: "status-box error", style: { marginBottom: "14px" } }, watchlistRefreshError) : null,
-        watchlistResearch.overall ? h("p", { className: "mood-overall serif" }, watchlistResearch.overall) : null,
+        watchlistResearch?.overall ? h("p", { className: "mood-overall serif" }, watchlistResearch?.overall) : null,
         h("ul", { className: "mood-list" },
           WATCHLIST.map(s => h("li", { key: s.key },
             h("span", { className: "mood-company" }, s.company, " "),

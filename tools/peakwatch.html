@@ -596,19 +596,9 @@ function App(){
 
   // Research data starts as the static, dated snapshot and can be replaced with a live
   // Gemini-researched refresh (see "Refresh Research" below) — never automatic, always on click.
-  const [magResearch, setMagResearch] = useState({ asOf: FUNDAMENTALS.asOf, overall: DRAWDOWN_COMMENTARY.overall, fundamentals: FUNDAMENTALS.data, notes: DRAWDOWN_COMMENTARY.notes });
-  const [semiResearch, setSemiResearch] = useState({ asOf: SEMI_FUNDAMENTALS.asOf, overall: SEMI_OUTLOOK.overall, fundamentals: SEMI_FUNDAMENTALS.data, notes: SEMI_OUTLOOK.notes });
-  // No pre-researched static snapshot exists for this group — it starts empty and relies entirely
-  // on "Refresh Research" (honest starting point rather than a fabricated snapshot).
-  const [watchlistResearch, setWatchlistResearch] = useState(() => {
-    const fundamentals = {}, notes = {};
-    Object.keys(WATCHLIST_RESEARCH.data).forEach(symbol => {
-      const entry = WATCHLIST_RESEARCH.data[symbol];
-      fundamentals[symbol] = { pe: entry.pe, peHistory: entry.peHistory, peg: entry.peg, pb: entry.pb, roic: entry.roic, fcf: entry.fcf, earningsGrowth: entry.earningsGrowth };
-      notes[symbol] = entry.outlookNote;
-    });
-    return { asOf: WATCHLIST_RESEARCH.asOf, overall: WATCHLIST_RESEARCH.overall, fundamentals, notes };
-  });
+  const [magResearch, setMagResearch] = useState(null);
+  const [semiResearch, setSemiResearch] = useState(null);
+  const [watchlistResearch, setWatchlistResearch] = useState(null);
   const [geminiKey, setGeminiKey] = useState("");
   const [geminiKeyInput, setGeminiKeyInput] = useState("");
   const [refreshingMag, setRefreshingMag] = useState(false);
@@ -831,21 +821,21 @@ function App(){
             )
           ),
           h("tbody", null,
-            MAG7.map(s => h(StockRow, { key: s.key, def: s, state: magData[s.key] || { loading: true }, fundamentalsData: magResearch.fundamentals }))
+            MAG7.map(s => h(StockRow, { key: s.key, def: s, state: magData[s.key] || { loading: true }, fundamentalsData: magResearch?.fundamentals }))
           )
         )
       ),
 
       h("div", { className: "mood-box" },
         h("h2", { className: "serif" }, "📐 P/E vs. Each Company's Own History"),
-        h("p", { className: "mood-asof" }, "Researched as of ", magResearch.asOf, ". ", h("button", { className: "btn-text", onClick: refreshMagResearch, disabled: refreshingMag }, refreshingMag ? "Refreshing…" : "🔄 Refresh Research")),
+        h("p", { className: "mood-asof" }, "Researched as of ", geminiKey ? magResearch?.asOf : new Date().toLocaleDateString(), ". ", h("button", { className: "btn-text", onClick: refreshMagResearch, disabled: refreshingMag }, refreshingMag ? "Refreshing…" : "🔄 Refresh Research")),
         magRefreshError ? h("div", { className: "status-box error", style: { marginBottom: "14px" } }, magRefreshError) : null,
         h("p", { style: { color: "var(--ink-soft)", fontSize: "0.88rem", marginBottom: "16px" } },
           "A high P/E alone doesn't say much — what matters more is how it compares to the company's own typical range. A stock that's dropped can still be expensive if its P/E remains well above its historical norm, and a stock trading at a high absolute P/E can still be reasonably priced if that's actually low for its own history."
         ),
         h("ul", { className: "mood-list" },
           MAG7.map(s => {
-            const f = magResearch.fundamentals[s.symbol];
+            const f = magResearch?.fundamentals[s.symbol];
             return h("li", { key: s.key },
               h("span", { className: "mood-company" }, s.company, " "),
               h("span", { className: "mood-note" }, f ? f.peHistory : "No data available.")
@@ -856,12 +846,12 @@ function App(){
 
       h("div", { className: "mood-box" },
         h("h2", { className: "serif" }, "🗞️ What's Behind the Pullback"),
-        h("p", { className: "mood-asof" }, "Researched as of ", magResearch.asOf, ". A snapshot from your last refresh, not a live feed — click Refresh Research above for the latest."),
-        h("p", { className: "mood-overall serif" }, magResearch.overall),
+        h("p", { className: "mood-asof" }, "Researched as of ", geminiKey ? magResearch?.asOf : new Date().toLocaleDateString(), ". A snapshot from your last refresh, not a live feed — click Refresh Research above for the latest."),
+        h("p", { className: "mood-overall serif" }, geminiKey ? magResearch?.overall : "(Waiting for research refresh)"),
         h("ul", { className: "mood-list" },
           MAG7.map(s => h("li", { key: s.key },
             h("span", { className: "mood-company" }, s.company, " "),
-            h("span", { className: "mood-note" }, magResearch.notes[s.symbol] || "No commentary available.")
+            h("span", { className: "mood-note" }, magResearch?.notes[s.symbol] || "No commentary available.")
           ))
         )
       ),
@@ -886,20 +876,20 @@ function App(){
             )
           ),
           h("tbody", null,
-            SEMI.map(s => h(StockRow, { key: s.key, def: s, state: semiData[s.key] || { loading: true }, fundamentalsData: semiResearch.fundamentals }))
+            SEMI.map(s => h(StockRow, { key: s.key, def: s, state: semiData[s.key] || { loading: true }, fundamentalsData: semiResearch?.fundamentals }))
           )
         )
       ),
 
       h("div", { className: "mood-box" },
         h("h2", { className: "serif" }, "🔬 Contributing Factors & Outlook"),
-        h("p", { className: "mood-asof" }, "Researched as of ", semiResearch.asOf, ". ", h("button", { className: "btn-text", onClick: refreshSemiResearch, disabled: refreshingSemi }, refreshingSemi ? "Refreshing…" : "🔄 Refresh Research")),
+        h("p", { className: "mood-asof" }, "Researched as of ", geminiKey ? semiResearch?.asOf : new Date().toLocaleDateString(), ". ", h("button", { className: "btn-text", onClick: refreshSemiResearch, disabled: refreshingSemi }, refreshingSemi ? "Refreshing…" : "🔄 Refresh Research")),
         semiRefreshError ? h("div", { className: "status-box error", style: { marginBottom: "14px" } }, semiRefreshError) : null,
-        h("p", { className: "mood-overall serif" }, semiResearch.overall),
+        h("p", { className: "mood-overall serif" }, geminiKey ? semiResearch?.overall : "(Waiting for research refresh)"),
         h("ul", { className: "mood-list" },
           SEMI.map(s => h("li", { key: s.key },
             h("span", { className: "mood-company" }, s.company, " "),
-            h("span", { className: "mood-note" }, semiResearch.notes[s.symbol] || "No commentary available.")
+            h("span", { className: "mood-note" }, (semiResearch?.notes || {})[s.symbol] || "No commentary available.")
           ))
         )
       ),
@@ -924,7 +914,7 @@ function App(){
             )
           ),
           h("tbody", null,
-            WATCHLIST.map(s => h(StockRow, { key: s.key, def: s, state: watchlistData[s.key] || { loading: true }, fundamentalsData: watchlistResearch.fundamentals }))
+            WATCHLIST.map(s => h(StockRow, { key: s.key, def: s, state: watchlistData[s.key] || { loading: true }, fundamentalsData: watchlistResearch?.fundamentals }))
           )
         )
       ),
@@ -940,7 +930,7 @@ function App(){
         h("ul", { className: "mood-list" },
           WATCHLIST.map(s => h("li", { key: s.key },
             h("span", { className: "mood-company" }, s.company, " "),
-            h("span", { className: "mood-note" }, watchlistResearch.notes[s.symbol] || "No commentary yet — click Refresh Research above.")
+            h("span", { className: "mood-note" }, watchlistResearch?.notes[s.symbol] || "No commentary yet — click Refresh Research above.")
           ))
         )
       )

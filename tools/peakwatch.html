@@ -572,14 +572,48 @@ async function fetchGeminiResearch(apiKey, model, companies, label){
   try{
     parsed = JSON.parse(clean);
   }catch(e){
-    logApiError("Failed to parse Gemini research JSON (" + label + ")", { raw: text, error: e.message });
-    throw new Error("Gemini's response wasn't valid JSON, so it couldn't be parsed. Try refreshing again — this occasionally happens with longer research responses.");
+    logApiError("Failed to parse Gemini research JSON (" + label + ")", { raw: text.slice(0,500), error: e.message });
+    // Try extracting what we can from the raw text even if full JSON fails
+    const extracted = extractFromText(text);
+    if(extracted){
+      parsed = { companies: extracted };
+      logApiError("Extracted partial data from Gemini response (" + label + ")", extracted);
+    }else{
+      throw new Error("Gemini's response couldn't be parsed as JSON. This happens when the API returns truncated or malformed responses — try checking your internet connection, refreshing the page, and clicking "Refresh Research" again.");
+    }
   }
   if(!parsed.companies){
     logApiError("Gemini research JSON missing companies object (" + label + ")", parsed);
     throw new Error("Gemini's response didn't include company data. Try refreshing again.");
   }
   return parsed;
+}
+
+function extractFromText(text){
+  // Attempt to extract company data from the raw text even when JSON parsing fails
+  // This handles cases where Gemini returns partially formatted or truncated responses
+  try{
+    const companies = {};
+    // Try common patterns: look for object properties with P/E, symbol, etc.
+    // Pattern 1: Simple "symbol": value pairs
+    const simplePattern = /\s*"[^"\s]+"(?:[,:\s])*(-?[\d.,%n\/]+)/g;
+    let match;
+    while(match = simplePattern.exec(text)){
+      // Extract symbol (usually near beginning of line or after comma/colon)
+      const before = text.slice(0, match.index + 10).replace(/[\s\r\n]/g,'');
+      const possibleSymbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 
+        'AMD', 'AVGO', 'INTC', 'QCOM', 'TXN', 'MU', 'SNDK',
+        'ORCL', 'DELL', 'SKHY', 'EWY', 'ARM', 'ASML', 'KLAC', 'LITE'];
+      for(let sym of possibleSymbols){
+        if(before.toLowerCase().includes(sym.toLowerCase())){
+          companies[sym] = { pe: parseFloat(match[1]) || 0 };
+        }
+      }
+    }
+    return Object.keys(companies).length > 0 ? companies : null;
+  }catch(e){
+    return null;
+  }
 }
 
 

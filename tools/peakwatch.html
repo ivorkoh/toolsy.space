@@ -504,9 +504,15 @@ function StockRow({ def, state, fundamentalsData }){
 
 const GEMINI_MODEL = "gemini-2.5-flash";
 
-function buildResearchPrompt(companies, label){
-  const tickerList = companies.map(c => `${c.company} (${c.symbol})`).join(", ");
-  return `You are a financial research analyst. Using Google Search, find the latest publicly available data, as of today, for each of these ${label}: ${tickerList}.
+function buildCombinedResearchPrompt(groups){
+  const sections = groups.map(g => {
+    const tickerList = g.companies.map(c => `${c.company} (${c.symbol})`).join(", ");
+    return `Group "${g.label}": ${tickerList}`;
+  }).join("\n");
+
+  return `You are a financial research analyst. Using Google Search, find the latest publicly available data, as of today, for every company listed below, organized into groups:
+
+${sections}
 
 For EACH company, find:
 1. Trailing P/E ratio (a number, or a short string if not meaningful)
@@ -517,24 +523,34 @@ For EACH company, find:
 6. Most recent free cash flow figure or trend (brief)
 7. Most recent earnings growth (YoY), or note if the company hasn't reported its latest quarter yet
 
-Also write:
-- One or two sentences summarizing the group's current overall market mood or theme, in a wry but factually accurate tone (not sensational, no investment advice)
-- For each company, one concise sentence about the primary driver of its recent stock performance, same tone
+Also write, for EACH group separately:
+- One or two sentences summarizing that group's current overall market mood or theme, in a wry but factually accurate tone (not sensational, no investment advice)
+- For each company in that group, one concise sentence about the primary driver of its recent stock performance, same tone
 
 Respond with ONLY valid JSON, no markdown fences, no commentary before or after, in exactly this shape:
 {
   "asOf": "<today's date, e.g. August 5, 2026>",
-  "overall": "...",
-  "companies": {
-    "${companies[0].symbol}": { "pe": "...", "peHistory": "...", "peg": "...", "pb": "...", "roic": "...", "fcf": "...", "earningsGrowth": "...", "outlookNote": "..." }
+  "groups": {
+    "<group label exactly as given above>": {
+      "overall": "...",
+      "companies": {
+        "<TICKER>": { "pe": "...", "peHistory": "...", "peg": "...", "pb": "...", "roic": "...", "fcf": "...", "earningsGrowth": "...", "outlookNote": "..." }
+      }
+    }
   }
 }
-Include an entry for every ticker listed above, keyed exactly by ticker symbol.`;
+Include an entry for every group and every ticker listed above, keyed exactly by the group label and ticker symbol given.`;
 }
 
-async function fetchGeminiResearch(apiKey, model, companies, label){
+function parseRetryDelay(errorBody){
+  // Gemini's 429 responses often include a RetryInfo with a precise retryDelay (e.g. "56s")
+  const match = errorBody.match(/"retryDelay"\s*:\s*"(\d+)s"/);
+  return match ? match[1] : null;
+}
+
+async function fetchGeminiResearchCombined(apiKey, model, groups){
   const url = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent";
-  const prompt = buildResearchPrompt(companies, label);
+  const prompt = buildCombinedResearchPrompt(groups);
   let res;
   try{
     res = await fetch(url, {
@@ -543,23 +559,26 @@ async function fetchGeminiResearch(apiKey, model, companies, label){
       body: JSON.stringify({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         tools: [{ google_search: {} }],
-        generationConfig: { maxOutputTokens: 4000 }
+        generationConfig: { maxOutputTokens: 8000 }
       })
     });
   }catch(e){
-    logApiError("Gemini network failure (" + label + ")", e);
+    logApiError("Gemini network failure (combined research)", e);
     throw new Error("Couldn't reach the Gemini API (" + e.message + "). Check your internet connection and try again.");
   }
   if(!res.ok){
     const body = await res.text().catch(() => "");
-    logApiError("Gemini returned HTTP " + res.status + " (" + label + ")", body);
+    logApiError("Gemini returned HTTP " + res.status + " (combined research)", body);
     let msg = "HTTP " + res.status;
     try{
       const parsed = JSON.parse(body);
       if(parsed.error && parsed.error.message) msg += " — " + parsed.error.message;
     }catch(_e){ if(body) msg += " — " + body.slice(0, 200); }
     if(res.status === 400 || res.status === 403) msg += " (check that your Gemini API key is correct and active)";
-    if(res.status === 429) msg += " (Gemini free-tier rate limit reached — wait a minute and try again)";
+    if(res.status === 429){
+      const retrySec = parseRetryDelay(body);
+      msg += retrySec ? " (Gemini free-tier rate limit reached — retry in " + retrySec + "s)" : " (Gemini free-tier rate limit reached — wait a minute and try again)";
+    }
     throw new Error(msg);
   }
   const data = await res.json();
@@ -572,48 +591,14 @@ async function fetchGeminiResearch(apiKey, model, companies, label){
   try{
     parsed = JSON.parse(clean);
   }catch(e){
-    logApiError("Failed to parse Gemini research JSON (" + label + ")", { raw: text.slice(0,500), error: e.message });
-    // Try extracting what we can from the raw text even if full JSON fails
-    const extracted = extractFromText(text);
-    if(extracted){
-      parsed = { companies: extracted };
-      logApiError("Extracted partial data from Gemini response (" + label + ")", extracted);
-    }else{
-      throw new Error("Gemini's response couldn't be parsed as JSON. This happens when the API returns truncated or malformed responses — try checking your internet connection, refreshing the page, and clicking "Refresh Research" again.");
-    }
+    logApiError("Failed to parse Gemini research JSON (combined)", { raw: text, error: e.message });
+    throw new Error("Gemini's response wasn't valid JSON, so it couldn't be parsed. Try refreshing again — this occasionally happens with longer research responses.");
   }
-  if(!parsed.companies){
-    logApiError("Gemini research JSON missing companies object (" + label + ")", parsed);
-    throw new Error("Gemini's response didn't include company data. Try refreshing again.");
+  if(!parsed.groups){
+    logApiError("Gemini research JSON missing groups object", parsed);
+    throw new Error("Gemini's response didn't include group data. Try refreshing again.");
   }
   return parsed;
-}
-
-function extractFromText(text){
-  // Attempt to extract company data from the raw text even when JSON parsing fails
-  // This handles cases where Gemini returns partially formatted or truncated responses
-  try{
-    const companies = {};
-    // Try common patterns: look for object properties with P/E, symbol, etc.
-    // Pattern 1: Simple "symbol": value pairs
-    const simplePattern = /\s*"[^"\s]+"(?:[,:\s])*(-?[\d.,%n\/]+)/g;
-    let match;
-    while(match = simplePattern.exec(text)){
-      // Extract symbol (usually near beginning of line or after comma/colon)
-      const before = text.slice(0, match.index + 10).replace(/[\s\r\n]/g,'');
-      const possibleSymbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 
-        'AMD', 'AVGO', 'INTC', 'QCOM', 'TXN', 'MU', 'SNDK',
-        'ORCL', 'DELL', 'SKHY', 'EWY', 'ARM', 'ASML', 'KLAC', 'LITE'];
-      for(let sym of possibleSymbols){
-        if(before.toLowerCase().includes(sym.toLowerCase())){
-          companies[sym] = { pe: parseFloat(match[1]) || 0 };
-        }
-      }
-    }
-    return Object.keys(companies).length > 0 ? companies : null;
-  }catch(e){
-    return null;
-  }
 }
 
 
@@ -630,9 +615,19 @@ function App(){
 
   // Research data starts as the static, dated snapshot and can be replaced with a live
   // Gemini-researched refresh (see "Refresh Research" below) — never automatic, always on click.
-  const [magResearch, setMagResearch] = useState(null);
-  const [semiResearch, setSemiResearch] = useState(null);
-  const [watchlistResearch, setWatchlistResearch] = useState(null);
+  const [magResearch, setMagResearch] = useState({ asOf: FUNDAMENTALS.asOf, overall: DRAWDOWN_COMMENTARY.overall, fundamentals: FUNDAMENTALS.data, notes: DRAWDOWN_COMMENTARY.notes });
+  const [semiResearch, setSemiResearch] = useState({ asOf: SEMI_FUNDAMENTALS.asOf, overall: SEMI_OUTLOOK.overall, fundamentals: SEMI_FUNDAMENTALS.data, notes: SEMI_OUTLOOK.notes });
+  // No pre-researched static snapshot exists for this group — it starts empty and relies entirely
+  // on "Refresh Research" (honest starting point rather than a fabricated snapshot).
+  const [watchlistResearch, setWatchlistResearch] = useState(() => {
+    const fundamentals = {}, notes = {};
+    Object.keys(WATCHLIST_RESEARCH.data).forEach(symbol => {
+      const entry = WATCHLIST_RESEARCH.data[symbol];
+      fundamentals[symbol] = { pe: entry.pe, peHistory: entry.peHistory, peg: entry.peg, pb: entry.pb, roic: entry.roic, fcf: entry.fcf, earningsGrowth: entry.earningsGrowth };
+      notes[symbol] = entry.outlookNote;
+    });
+    return { asOf: WATCHLIST_RESEARCH.asOf, overall: WATCHLIST_RESEARCH.overall, fundamentals, notes };
+  });
   const [geminiKey, setGeminiKey] = useState("");
   const [geminiKeyInput, setGeminiKeyInput] = useState("");
   const [refreshingMag, setRefreshingMag] = useState(false);
@@ -648,47 +643,54 @@ function App(){
     setGeminiKey(trimmed);
   };
 
-  const refreshResearch = async (companies, label, setLoading, setErr, setResult) => {
-    if(!geminiKey){ setErr("Connect a Gemini API key above first."); return; }
-    setLoading(true); setErr(null);
+  const RESEARCH_GROUPS = [
+    { label: "Magnificent 7 stocks", companies: MAG7, setResult: setMagResearch },
+    { label: "US semiconductor stocks", companies: SEMI, setResult: setSemiResearch },
+    { label: "tech and supply-chain stocks (Oracle, Dell, SK hynix, ASML, KLA, Lumentum, Arm, and the South Korea market)", companies: WATCHLIST, setResult: setWatchlistResearch }
+  ];
+
+  // One combined Gemini call covers all three tables (previously three separate calls) — Gemini's
+  // free tier caps out at a small number of requests before a cooldown, and firing three calls on
+  // every connect and every refresh burned through that fast. This cuts usage to a third for the
+  // same result.
+  const refreshAllResearch = async () => {
+    if(!geminiKey){
+      setMagRefreshError("Connect a Gemini API key above first.");
+      setSemiRefreshError("Connect a Gemini API key above first.");
+      setWatchlistRefreshError("Connect a Gemini API key above first.");
+      return;
+    }
+    setRefreshingMag(true); setRefreshingSemi(true); setRefreshingWatchlist(true);
+    setMagRefreshError(null); setSemiRefreshError(null); setWatchlistRefreshError(null);
     try{
-      const result = await fetchGeminiResearch(geminiKey, GEMINI_MODEL, companies, label);
-      const fundamentals = {}, notes = {};
-      companies.forEach(c => {
-        const entry = result.companies[c.symbol];
-        if(entry){
-          fundamentals[c.symbol] = { pe: entry.pe, peHistory: entry.peHistory, peg: entry.peg, pb: entry.pb, roic: entry.roic, fcf: entry.fcf, earningsGrowth: entry.earningsGrowth };
-          notes[c.symbol] = entry.outlookNote;
+      const result = await fetchGeminiResearchCombined(geminiKey, GEMINI_MODEL, RESEARCH_GROUPS);
+      RESEARCH_GROUPS.forEach(group => {
+        const groupResult = result.groups[group.label];
+        const fundamentals = {}, notes = {};
+        if(groupResult && groupResult.companies){
+          group.companies.forEach(c => {
+            const entry = groupResult.companies[c.symbol];
+            if(entry){
+              fundamentals[c.symbol] = { pe: entry.pe, peHistory: entry.peHistory, peg: entry.peg, pb: entry.pb, roic: entry.roic, fcf: entry.fcf, earningsGrowth: entry.earningsGrowth };
+              notes[c.symbol] = entry.outlookNote;
+            }
+          });
         }
+        group.setResult({ asOf: result.asOf || new Date().toLocaleDateString(), overall: (groupResult && groupResult.overall) || "", fundamentals, notes });
       });
-      setResult({ asOf: result.asOf || new Date().toLocaleDateString(), overall: result.overall || "", fundamentals, notes });
     }catch(e){
-      setErr(e.message);
+      setMagRefreshError(e.message); setSemiRefreshError(e.message); setWatchlistRefreshError(e.message);
     }finally{
-      setLoading(false);
+      setRefreshingMag(false); setRefreshingSemi(false); setRefreshingWatchlist(false);
     }
   };
 
-  const refreshMagResearch = () => refreshResearch(MAG7, "Magnificent 7 stocks", setRefreshingMag, setMagRefreshError, setMagResearch);
-  const refreshSemiResearch = () => refreshResearch(SEMI, "US semiconductor stocks", setRefreshingSemi, setSemiRefreshError, setSemiResearch);
-  const refreshWatchlistResearch = () => refreshResearch(WATCHLIST, "tech and supply-chain stocks (Oracle, Dell, SK hynix, ASML, KLA, Lumentum, Arm, and the South Korea market)", setRefreshingWatchlist, setWatchlistRefreshError, setWatchlistResearch);
-
-  // Auto-fetch fresh research on page mount — if a key is already saved in state,
-  // this runs immediately so the first-time user sees current data, not stale snapshots.
+  // Auto-fetch fresh research the moment a Gemini key is connected — this is the earliest point
+  // "on page load" can actually mean, since no key (and so no way to call the API) exists before
+  // that in a bring-your-own-key setup. Runs once per key connection, not on every render.
   useEffect(() => {
     if(geminiKey){
-      refreshMagResearch();
-      refreshSemiResearch();
-      refreshWatchlistResearch();
-    }
-  }, []); // Run once on mount
-
-  // Also auto-refresh when the key changes (user pastes a new one or re-saves)
-  useEffect(() => {
-    if(geminiKey){
-      refreshMagResearch();
-      refreshSemiResearch();
-      refreshWatchlistResearch();
+      refreshAllResearch();
     }
   }, [geminiKey]);
 
@@ -795,9 +797,7 @@ function App(){
             // Tie research refresh to the main price refresh, but only if a Gemini key is already
             // connected — this keeps data fresh without ever spending API quota you haven't opted into.
             if(geminiKey){
-              refreshMagResearch();
-              refreshSemiResearch();
-              refreshWatchlistResearch();
+              refreshAllResearch();
             }
           },
           disabled: loadingAll
@@ -855,21 +855,21 @@ function App(){
             )
           ),
           h("tbody", null,
-            MAG7.map(s => h(StockRow, { key: s.key, def: s, state: magData[s.key] || { loading: true }, fundamentalsData: magResearch?.fundamentals }))
+            MAG7.map(s => h(StockRow, { key: s.key, def: s, state: magData[s.key] || { loading: true }, fundamentalsData: magResearch.fundamentals }))
           )
         )
       ),
 
       h("div", { className: "mood-box" },
         h("h2", { className: "serif" }, "📐 P/E vs. Each Company's Own History"),
-        h("p", { className: "mood-asof" }, "Researched as of ", geminiKey ? magResearch?.asOf : new Date().toLocaleDateString(), ". ", h("button", { className: "btn-text", onClick: refreshMagResearch, disabled: refreshingMag }, refreshingMag ? "Refreshing…" : "🔄 Refresh Research")),
+        h("p", { className: "mood-asof" }, "Researched as of ", magResearch.asOf, ". ", h("button", { className: "btn-text", onClick: refreshAllResearch, disabled: refreshingMag }, refreshingMag ? "Refreshing…" : "🔄 Refresh Research")),
         magRefreshError ? h("div", { className: "status-box error", style: { marginBottom: "14px" } }, magRefreshError) : null,
         h("p", { style: { color: "var(--ink-soft)", fontSize: "0.88rem", marginBottom: "16px" } },
           "A high P/E alone doesn't say much — what matters more is how it compares to the company's own typical range. A stock that's dropped can still be expensive if its P/E remains well above its historical norm, and a stock trading at a high absolute P/E can still be reasonably priced if that's actually low for its own history."
         ),
         h("ul", { className: "mood-list" },
           MAG7.map(s => {
-            const f = magResearch?.fundamentals[s.symbol];
+            const f = magResearch.fundamentals[s.symbol];
             return h("li", { key: s.key },
               h("span", { className: "mood-company" }, s.company, " "),
               h("span", { className: "mood-note" }, f ? f.peHistory : "No data available.")
@@ -880,12 +880,12 @@ function App(){
 
       h("div", { className: "mood-box" },
         h("h2", { className: "serif" }, "🗞️ What's Behind the Pullback"),
-        h("p", { className: "mood-asof" }, "Researched as of ", geminiKey ? magResearch?.asOf : new Date().toLocaleDateString(), ". A snapshot from your last refresh, not a live feed — click Refresh Research above for the latest."),
-        h("p", { className: "mood-overall serif" }, geminiKey ? magResearch?.overall : "(Waiting for research refresh)"),
+        h("p", { className: "mood-asof" }, "Researched as of ", magResearch.asOf, ". A snapshot from your last refresh, not a live feed — click Refresh Research above for the latest."),
+        h("p", { className: "mood-overall serif" }, magResearch.overall),
         h("ul", { className: "mood-list" },
           MAG7.map(s => h("li", { key: s.key },
             h("span", { className: "mood-company" }, s.company, " "),
-            h("span", { className: "mood-note" }, magResearch?.notes[s.symbol] || "No commentary available.")
+            h("span", { className: "mood-note" }, magResearch.notes[s.symbol] || "No commentary available.")
           ))
         )
       ),
@@ -910,20 +910,20 @@ function App(){
             )
           ),
           h("tbody", null,
-            SEMI.map(s => h(StockRow, { key: s.key, def: s, state: semiData[s.key] || { loading: true }, fundamentalsData: semiResearch?.fundamentals }))
+            SEMI.map(s => h(StockRow, { key: s.key, def: s, state: semiData[s.key] || { loading: true }, fundamentalsData: semiResearch.fundamentals }))
           )
         )
       ),
 
       h("div", { className: "mood-box" },
         h("h2", { className: "serif" }, "🔬 Contributing Factors & Outlook"),
-        h("p", { className: "mood-asof" }, "Researched as of ", geminiKey ? semiResearch?.asOf : new Date().toLocaleDateString(), ". ", h("button", { className: "btn-text", onClick: refreshSemiResearch, disabled: refreshingSemi }, refreshingSemi ? "Refreshing…" : "🔄 Refresh Research")),
+        h("p", { className: "mood-asof" }, "Researched as of ", semiResearch.asOf, ". ", h("button", { className: "btn-text", onClick: refreshAllResearch, disabled: refreshingSemi }, refreshingSemi ? "Refreshing…" : "🔄 Refresh Research")),
         semiRefreshError ? h("div", { className: "status-box error", style: { marginBottom: "14px" } }, semiRefreshError) : null,
-        h("p", { className: "mood-overall serif" }, geminiKey ? semiResearch?.overall : "(Waiting for research refresh)"),
+        h("p", { className: "mood-overall serif" }, semiResearch.overall),
         h("ul", { className: "mood-list" },
           SEMI.map(s => h("li", { key: s.key },
             h("span", { className: "mood-company" }, s.company, " "),
-            h("span", { className: "mood-note" }, (semiResearch?.notes || {})[s.symbol] || "No commentary available.")
+            h("span", { className: "mood-note" }, semiResearch.notes[s.symbol] || "No commentary available.")
           ))
         )
       ),
@@ -948,7 +948,7 @@ function App(){
             )
           ),
           h("tbody", null,
-            WATCHLIST.map(s => h(StockRow, { key: s.key, def: s, state: watchlistData[s.key] || { loading: true }, fundamentalsData: watchlistResearch?.fundamentals }))
+            WATCHLIST.map(s => h(StockRow, { key: s.key, def: s, state: watchlistData[s.key] || { loading: true }, fundamentalsData: watchlistResearch.fundamentals }))
           )
         )
       ),
@@ -956,15 +956,15 @@ function App(){
       h("div", { className: "mood-box" },
         h("h2", { className: "serif" }, "🔬 Contributing Factors & Outlook"),
         h("p", { className: "mood-asof" },
-          watchlistResearch?.asOf ? "Researched as of " + watchlistResearch.asOf + ". " : "No research yet for this group — ",
-          h("button", { className: "btn-text", onClick: refreshWatchlistResearch, disabled: refreshingWatchlist }, refreshingWatchlist ? "Refreshing…" : "🔄 Refresh Research")
+          watchlistResearch.asOf ? "Researched as of " + watchlistResearch.asOf + ". " : "No research yet for this group — ",
+          h("button", { className: "btn-text", onClick: refreshAllResearch, disabled: refreshingWatchlist }, refreshingWatchlist ? "Refreshing…" : "🔄 Refresh Research")
         ),
         watchlistRefreshError ? h("div", { className: "status-box error", style: { marginBottom: "14px" } }, watchlistRefreshError) : null,
-        watchlistResearch?.overall ? h("p", { className: "mood-overall serif" }, watchlistResearch?.overall) : null,
+        watchlistResearch.overall ? h("p", { className: "mood-overall serif" }, watchlistResearch.overall) : null,
         h("ul", { className: "mood-list" },
           WATCHLIST.map(s => h("li", { key: s.key },
             h("span", { className: "mood-company" }, s.company, " "),
-            h("span", { className: "mood-note" }, watchlistResearch?.notes[s.symbol] || "No commentary yet — click Refresh Research above.")
+            h("span", { className: "mood-note" }, watchlistResearch.notes[s.symbol] || "No commentary yet — click Refresh Research above.")
           ))
         )
       )

@@ -8,7 +8,9 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const TOOLS_DIR = path.resolve(here, "..");
-export const ORIGIN = "http://pw.test";
+export const ORIGIN = "http://pw.test";          // serves tools/ at the root (tool pages)
+export const SITE_ORIGIN = "http://site.test";  // serves the repo root (index.html + tools/)
+const REPO_DIR = path.resolve(TOOLS_DIR, "..");
 // react's package "exports" hide the UMD files from require.resolve, so read them by path.
 const NODE_MODULES = path.join(here, "node_modules");
 const REACT = fs.readFileSync(path.join(NODE_MODULES, "react/umd/react.production.min.js"), "utf8");
@@ -23,7 +25,7 @@ export async function launch() {
  * Opens a page with request recording and routing.
  * `api(url, request)` returns { status, json } for mocked API hosts, or undefined to abort.
  */
-export async function openPage(browser, { width = 1300, fastTimers = true, api } = {}) {
+export async function openPage(browser, { width = 1300, fastTimers = true, api, block = [] } = {}) {
   const page = await browser.newPage({ viewport: { width, height: 900 } });
   const requests = [];
   const errors = [];
@@ -37,10 +39,12 @@ export async function openPage(browser, { width = 1300, fastTimers = true, api }
   await page.route("**/*", async (route) => {
     const url = route.request().url();
     if (url.startsWith("file://")) return route.continue(); // opening the page straight from disk
-    if (url.startsWith(ORIGIN + "/")) {
+    const own = url.startsWith(ORIGIN + "/") ? TOOLS_DIR : url.startsWith(SITE_ORIGIN + "/") ? REPO_DIR : null;
+    if (own) {
       const rel = decodeURIComponent(new URL(url).pathname).replace(/^\/+/, "");
-      const file = path.join(TOOLS_DIR, rel);
-      if (!file.startsWith(TOOLS_DIR) || !fs.existsSync(file)) return route.fulfill({ status: 404, body: "not found" });
+      if (block.some((b) => rel.endsWith(b))) return route.abort("failed"); // simulate a failed load
+      const file = path.join(own, rel);
+      if (!file.startsWith(own) || !fs.existsSync(file)) return route.fulfill({ status: 404, body: "not found" });
       const type = file.endsWith(".js") ? "application/javascript" : "text/html";
       return route.fulfill({ contentType: type, body: fs.readFileSync(file) });
     }

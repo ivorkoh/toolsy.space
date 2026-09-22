@@ -4,8 +4,8 @@
   "description": "Unit + browser integration tests for the utility-app tools. Dependencies are test-only; the tools themselves have no build step.",
   "type": "commonjs",
   "scripts": {
-    "test:unit": "node --test --experimental-test-coverage --test-coverage-include=../peakwatch.research.js --test-coverage-lines=90 --test-coverage-branches=90 --test-coverage-functions=90 peakwatch.research.test.js",
-    "test:e2e": "node --test peakwatch.e2e.test.mjs resalewatch.e2e.test.mjs",
+    "test:unit": "node --test --experimental-test-coverage --test-coverage-include=../peakwatch.research.js --test-coverage-include=../cachebust.js --test-coverage-lines=90 --test-coverage-branches=90 --test-coverage-functions=90 peakwatch.research.test.js cachebust.test.js",
+    "test:e2e": "node --test peakwatch.e2e.test.mjs resalewatch.e2e.test.mjs cachebust.e2e.test.mjs",
     "test": "npm run test:unit && npm run test:e2e"
   },
   "devDependencies": {

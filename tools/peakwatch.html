@@ -12,8 +12,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,500;0,600;0,700;1,500&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<!-- Research + data-access logic (unit-tested in tools/tests/). Must load before the inline app script. -->
-<script src="peakwatch.research.js"></script>
 
 <style>
   :root{
@@ -184,6 +182,7 @@
     max-width:90ch;
   }
   .disclaimer strong{color:var(--ink);}
+  .status-load-error{color:var(--loss);font-weight:600;padding:16px 0;}
 
   /* research cards (shared by all three tables) */
   .research-cards{margin-bottom:34px;}
@@ -232,6 +231,22 @@
 </div>
 
 <script>
+// The research module (peakwatch.research.js, unit-tested in tools/tests/) is loaded with a fresh
+// ?v=<timestamp> on every page load so a cached copy is never used after a deploy (GitHub Pages
+// can't be told not to cache). The app starts only once it has loaded.
+(function loadResearchModule(){
+  var s = document.createElement("script");
+  s.src = "peakwatch.research.js?v=" + Date.now().toString(36);
+  s.onload = startPeakWatch;
+  s.onerror = function(){
+    var root = document.getElementById("root");
+    root.textContent = "PeakWatch couldn't load its research module (peakwatch.research.js). Check your connection and reload the page.";
+    root.className = "status-load-error";
+  };
+  document.head.appendChild(s);
+})();
+
+function startPeakWatch(){
 const { useState, useCallback, useEffect, useRef } = React;
 const PW = window.PeakWatchResearch;
 const h = React.createElement;
@@ -932,6 +947,7 @@ function App(){
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(h(App));
+} // end startPeakWatch
 </script>
 </body>
 </html>

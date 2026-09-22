@@ -306,5 +306,17 @@
     Built as standalone pages — each tool is a single self-contained file, linked from this directory. Send the next utility idea to add another level or space.
   </footer>
 
+  <!-- Cache refresh: GitHub Pages can't be told not to cache, so every tool link gets a one-time
+       ?v=<timestamp> stamp and each click fetches the latest file. The helper is itself loaded with
+       a fresh stamp. If it hasn't loaded yet, links still work — just without the stamp. -->
+  <script>
+    (function () {
+      var s = document.createElement("script");
+      s.src = "tools/cachebust.js?v=" + Date.now().toString(36);
+      s.onload = function () { if (window.CacheBust) window.CacheBust.install(document, window); };
+      document.body.appendChild(s);
+    })();
+  </script>
+
 </body>
 </html>

@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://api.twelvedata.com https://generativelanguage.googleapis.com; img-src 'self' data:; base-uri 'none'; form-action 'none'" />
+<meta name="referrer" content="no-referrer" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>PeakWatch — How Far Is the Market From Its Peak?</title>
 <meta name="description" content="Live prices for the S&P 500, Nasdaq 100, and MSCI World, each measured against its 52-week high." />
@@ -10,6 +12,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,500;0,600;0,700;1,500&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<!-- Research + data-access logic (unit-tested in tools/tests/). Must load before the inline app script. -->
+<script src="peakwatch.research.js"></script>
 
 <style>
   :root{
@@ -180,6 +184,33 @@
     max-width:90ch;
   }
   .disclaimer strong{color:var(--ink);}
+
+  /* research cards (shared by all three tables) */
+  .research-cards{margin-bottom:34px;}
+  .research-cards .mood-box{margin-bottom:16px;}
+  .mood-box .btn-text{color:#F7E1CC;}
+  .mood-box .btn-text:disabled{opacity:0.6;cursor:default;}
+  .mood-group{display:inline-block;margin-left:10px;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;color:#C9B896;vertical-align:middle;}
+  .mood-intro{color:#E4D8C7;font-size:0.86rem;margin:0 0 16px;}
+  .mood-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;margin-bottom:3px;}
+  .mood-sym{font-size:0.7rem;color:#C9B896;}
+  .mood-chip{font-size:0.7rem;padding:1px 8px;border-radius:999px;background:rgba(255,255,255,0.1);color:#F7E1CC;white-space:nowrap;}
+  .mood-chip.up{color:#7CD3A0;}
+  .mood-chip.down{color:#F0958A;}
+  .mood-tag{font-family:'IBM Plex Mono',monospace;font-size:0.62rem;text-transform:uppercase;letter-spacing:0.05em;padding:1px 6px;border-radius:4px;border:1px solid rgba(247,225,204,0.45);color:#F7E1CC;}
+  .mood-eg{margin-top:6px;font-size:0.84rem;color:#E4D8C7;padding-left:10px;border-left:2px solid var(--gold);}
+  .mood-eg-label{display:block;font-size:0.62rem;text-transform:uppercase;letter-spacing:0.05em;color:#C9B896;}
+  .mood-status{margin:0 0 14px;padding:10px 12px;border-radius:8px;font-size:0.82rem;background:rgba(255,255,255,0.08);color:#F7E1CC;}
+  .mood-status.error{background:rgba(178,58,46,0.35);color:#fff;}
+  .mood-sources{margin-top:16px;border-top:1px solid rgba(255,255,255,0.15);padding-top:10px;font-size:0.8rem;}
+  .mood-sources summary{cursor:pointer;color:#C9B896;font-family:'IBM Plex Mono',monospace;font-size:0.72rem;}
+  .mood-sources ul{margin:8px 0 0;padding-left:18px;}
+  .mood-sources a{color:#F7E1CC;word-break:break-word;}
+  .subnum{white-space:nowrap;font-size:0.7rem;color:var(--ink-soft);font-weight:500;margin-top:2px;}
+  @media (max-width:600px){
+    .mood-box{padding:18px 16px;}
+    .mood-group{display:block;margin:4px 0 0;}
+  }
 </style>
 </head>
 <body>
@@ -201,7 +232,8 @@
 </div>
 
 <script>
-const { useState, useCallback, useEffect } = React;
+const { useState, useCallback, useEffect, useRef } = React;
+const PW = window.PeakWatchResearch;
 const h = React.createElement;
 
 const SYMBOLS = [
@@ -244,98 +276,161 @@ const WATCHLIST = [
   { key: "lite", symbol: "LITE", company: "Lumentum" }
 ];
 
-// Researched and written by Claude via live web search on August 27, 2026 — this is a point-in-time
-// snapshot, not a live feed. It's embedded as static text rather than regenerated in-browser because
-// a live Claude API call from a self-hosted static page (outside claude.ai) generally can't authenticate,
-// so it would silently fail after download. Use the "Refresh Research" button on this page (Gemini,
-// your own key) for a live update, or re-ask Claude to refresh this snapshot directly.
-const DRAWDOWN_COMMENTARY = {
-  asOf: "August 27, 2026",
-  overall: "All four Magnificent Seven earnings that were pending in late July have now reported, and the results split the group in two: Apple, Microsoft, and Amazon delivered real strength (even where headline numbers were flattered by one-time gains), while Meta's outright miss and 10% drop showed the market has stopped giving AI spending the benefit of the doubt.",
-  notes: {
-    AAPL: "Beat on both revenue (+16% YoY) and EPS (+29% YoY) for its June quarter, but shares still fell roughly 4% on a Greater China revenue miss and softer Services growth — a reminder that beating estimates isn't the same as beating every line item investors are watching.",
-    MSFT: "Crossed a closely-watched Azure revenue milestone in its latest quarter and shares jumped roughly 8% on the report — a sharp reversal from the doubt that had been weighing on the stock through the summer.",
-    GOOGL: "Reported EPS of $9.11 against $2.88 expected, but roughly $98 billion of that was a one-time unrealized gain (mainly its SpaceX stake) — underlying growth was still solid, though the stock has fallen sharply since on the same AI capex concerns that hit it back in July.",
-    AMZN: "Posted its first-ever $200 billion quarter (revenue +19.6% YoY) with AWS growing 37% — its fastest pace in 18 quarters — though the headline EPS beat was flattered by a one-time $53.4 billion gain tied to its Anthropic stake, and free cash flow turned negative as capex hit $54.2 billion for the quarter.",
-    NVDA: "Comparatively resilient, but lately overshadowed as investor attention drifts toward the memory-chip makers supplying the very data centers Nvidia's customers are racing to build.",
-    META: "The one real disappointment of the group — EPS missed outright ($6.18 versus $7.22 expected) as net income fell 14% year-over-year on one-time legal and severance charges, and shares dropped about 10% on the report.",
-    TSLA: "Hit hardest of all, after swinging to negative free cash flow and confirming a sharply higher 2026 capital-spending plan for robotics and AI infrastructure — with execution details still thin on the ground."
-  }
-};
+// ---------------------------------------------------------------------------------------------
+// Research groups — one definition drives the tables, the three research cards under each
+// table, and the Gemini prompt (groups are keyed by a short stable id, not a long label, so a
+// slightly reworded label from the model can't silently drop a whole table).
+// ---------------------------------------------------------------------------------------------
+const GROUPS = [
+  { id: "mag7", title: "Magnificent 7", promptLabel: "Magnificent 7 mega-cap tech stocks", companies: MAG7 },
+  { id: "semi", title: "US Semiconductors", promptLabel: "US-listed semiconductor stocks (Nvidia excluded — covered in the Magnificent 7 group)", companies: SEMI },
+  { id: "watchlist", title: "Tech & Supply Chain Watchlist", promptLabel: "AI tech and supply-chain stocks plus the South Korea ETF (EWY)", companies: WATCHLIST }
+];
 
-// Researched by Claude via live web search on August 27, 2026 — refreshed from the July 27 snapshot
-// now that Apple, Microsoft, Alphabet, Amazon, and Meta have all reported the quarter that was
-// previously pending. Same caveats as before: P/E is trailing and from a single source where possible
-// for comparability; PEG and P/B are rounded estimates cross-referenced across multiple sources, not
-// exact figures; ROIC is mostly GuruFocus (Q1 2026) for consistency, with AAPL and NVDA from separate
-// sources. Nvidia and Tesla's figures are unchanged from July since neither has reported since then.
-const FUNDAMENTALS = {
-  asOf: "August 27, 2026",
-  data: {
-    AAPL: { pe: 33.0, peHistory: "Roughly in line with its own 5-year average — the rally hasn't stretched its multiple much, since Apple sat out the AI capex spree.", peg: "~2.0", pb: "~45x", roic: "49.7%", fcf: "$129B+ TTM", earningsGrowth: "EPS +29% YoY, revenue +16% YoY (FQ3, reported Jul 30) — beat, but shares fell ~4% on a Greater China and Services miss" },
-    MSFT: { pe: 25.3, peHistory: "Below its own recent (post-2023) average, which had often run in the low-30s — the sell-off has pulled its multiple down relative to its own history.", peg: "~1.8", pb: "~10x", roic: "20.9%", fcf: "$58.7B (FY26)", earningsGrowth: "Crossed a key Azure revenue milestone (FQ4, reported Jul 29) — shares jumped ~8% on the report" },
-    GOOGL: { pe: 28.6, peHistory: "Above its own historical norm — Alphabet has usually traded at a discount to Mag 7 peers, often in the low-to-mid 20s, so this is a real re-rating upward.", peg: "~1.0–1.3", pb: "~8x", roic: "27.8%", fcf: "–$5.9B (Q2, negative — first time ever)", earningsGrowth: "EPS $9.11 vs. $2.88 est. — but ~$98B was a one-time unrealized gain (SpaceX stake); underlying growth solid, shares still down sharply since on capex worries" },
-    AMZN: { pe: 29.7, peHistory: "Actually low relative to its own long-run history — Amazon has often traded far higher (50x+) when it was still suppressing earnings to reinvest; today's multiple reflects genuine profit maturity.", peg: "~2.2", pb: "~7–8x", roic: "11.2%", fcf: "–$7.6B TTM (Q2) — capex hit $54.2B for the quarter", earningsGrowth: "Revenue +19.6% YoY (first-ever $200B quarter); AWS +37% (fastest in 18 quarters); EPS beat flattered by a one-time $53.4B Anthropic-stake gain" },
-    NVDA: { pe: 37.9, peHistory: "Toward the low end of its own 2–3 year AI-era range — earnings have grown even faster than the stock price.", peg: "<1.0", pb: "~40x+", roic: "61.8%", fcf: "$96.6B (FY26)", earningsGrowth: "+66.7% YoY net income" },
-    META: { pe: 27.8, peHistory: "Roughly in line with its post-2023 recovery-era average — not dramatically stretched.", peg: "~0.6–1.3", pb: "~8–9x", roic: "32.4%", fcf: "~$1.9B (−95.7% YoY)", earningsGrowth: "EPS missed ($6.18 vs. $7.22 est.); net income −14% YoY on one-time legal and severance charges — shares fell ~10%" },
-    TSLA: { pe: 377.8, peHistory: "Elevated even by Tesla's own unusually wide historical range (which has swung from under 50x to 1000x+) — P/E is close to meaningless here given how earnings-thin the company currently is.", peg: "n/m", pb: "~15–16x", roic: "2.9%", fcf: "Negative (Q2)", earningsGrowth: "EPS −18% YoY (Q2, reported Jul 28)" }
-  }
-};
-
-// Researched by Claude via live web search on July 29, 2026 — same static-snapshot approach as the
-// Magnificent 7 fundamentals above, for the same reasons (no free live source, figures move daily and
-// differ by provider). Sourcing is more of a patchwork here than for the Mag 7: some figures (AVGO,
-// TXN ROIC/PEG) come from a single coherent source (StockAnalysis.com); others are cross-referenced
-// estimates; and P/B specifically wasn't reliably found for most of these seven, so it's marked "est."
-// or left as a qualitative note rather than a fabricated number. Where a figure clearly predates a
-// major move (e.g. Intel's P/E/PEG, sourced from an April 2026 analysis before its big H1 rally), that's
-// flagged directly in the value or in the outlook note below, rather than presented as current.
-const SEMI_FUNDAMENTALS = {
-  asOf: "July 29, 2026",
-  data: {
-    AMD: { pe: 165.1, peg: "1.33", pb: "~10–12x (est.)", roic: "7.4%", fcf: "$8.57B TTM", earningsGrowth: "Record quarterly FCF; AI datacenter momentum building (MI450/Helios)" },
-    AVGO: { pe: 63.4, peg: "0.51", pb: "~20x+ (est.)", roic: "24.2%", fcf: "$10.26B (Q2 FY26, record)", earningsGrowth: "AI semi revenue +143% YoY; Q3 guided >200% YoY" },
-    INTC: { pe: "~110x (Apr '26, stale — predates its H1 rally)", peg: "3.2 (same stale source)", pb: "n/a (est. unavailable)", roic: "Weak/negative (ongoing foundry turnaround)", fcf: "Pressured by foundry capex", earningsGrowth: "+278% stock YTD (H1); Q2 beat sent shares surging" },
-    QCOM: { pe: 22.3, peg: "~1.0 (est.)", pb: "~6–7x (est.)", roic: "22.5%", fcf: "Healthy, steady dividend payer", earningsGrowth: "Pivoting into AI datacenter silicon (Dragonfly, multi-year Meta deal)" },
-    TXN: { pe: 49.8, peg: "1.68", pb: "~9.5x (dated Oct '25)", roic: "22.3%", fcf: "Solid but rich vs. FCF (EV/FCF ~74x)", earningsGrowth: "EPS +52% YoY (Q2 2026, beat-and-raise)" },
-    MU: { pe: 20.3, peg: "<0.3 (est.)", pb: "n/a (est. unavailable)", roic: "Strong, rapidly improving (precise figure not found)", fcf: "Record FCF, Q2 FY26 (per CEO)", earningsGrowth: "Revenue +345% YoY (Q3); +304% stock YTD (H1, #2 in S&P 500)" },
-    SNDK: { pe: 42.7, peg: "0.17", pb: "n/a (est. unavailable)", roic: "Rapidly improving (precise figure not found)", fcf: "Improving sharply amid memory supercycle", earningsGrowth: "EPS $6.20 vs. $3.31 est. (+88%, Q2); +860% stock YTD at H1 peak (#1 in S&P 500)" }
-  }
-};
-
-const SEMI_OUTLOOK = {
-  asOf: "July 29, 2026",
-  overall: "Semiconductors are living two stories at once: an AI-driven memory supercycle and custom-silicon boom that's produced some of the best returns in the entire S&P 500 this year, alongside a July pullback as investors start questioning how much of that is already priced in. The dispersion inside the group is unusually wide — from record free cash flow at one end to earnings multiples that only make sense if the AI buildout never slows.",
-  notes: {
-    AMD: "Riding genuine momentum in AI inferencing and agentic-AI demand, with MI450 and Helios deployments scaling and a record quarterly free cash flow print — but the market has run well ahead of earnings, pricing in years of execution the company hasn't delivered yet.",
-    AVGO: "About as strong a quarter as a semiconductor company can report — record revenue, profit, and free cash flow, AI semiconductor revenue up 143% year-over-year and guided to more than double next quarter — tempered by reports that its largest customer, Google, is starting to diversify toward other chip suppliers.",
-    INTC: "The group's biggest swing story: written off by some analysts earlier in the year as overvalued against thin earnings growth, then delivered one of the best first-half stock returns in the entire S&P 500 after a Q2 beat reignited turnaround hopes — the foundry business remains the real test of whether that's durable or a short squeeze.",
-    QCOM: "The quiet diversification story — steadily pivoting beyond its smartphone-chip roots into AI datacenter silicon, anchored by a multi-year supply deal with Meta, while trading at a valuation that looks almost conservative next to the rest of this group.",
-    TXN: "Just delivered a genuine beat-and-raise quarter — EPS up 52% year-over-year — and the stock still fell on the news, a sign investors are demanding more than good results alone from a stock already priced for AI-adjacent demand in its analog and power-management chips.",
-    MU: "At the center of the AI memory supercycle, with quarterly revenue up 345% year-over-year as HBM capacity sells out through the year — the historical risk with memory is that supercycles eventually become gluts, and this one is being priced as if that won't happen for years.",
-    SNDK: "The single best-performing story in this group by a wide margin — up roughly 860% at its 2026 high — and also the most violent, having since dropped over 30% from that peak as the same memory-supercycle enthusiasm that drove the rally turned into supply-glut and China-competition anxiety almost overnight."
-  }
-};
-
-// Researched by Claude via live web search on August 27, 2026 — first-time research for this group
-// (it previously started empty by design). Two honest edge cases worth flagging directly: SK hynix's
-// widely-reported P/E figure from at least one data provider comes out under 1.0, which is implausible
-// for a real company (would mean the market values it at less than one year's earnings) — almost
-// certainly a KRW/USD unit-conversion artifact, so it's described qualitatively here instead of restated
-// as fact. Dell reports its next quarter on Aug 28 — right around when this was researched — so its
-// figures are marked as pending rather than invented.
-const WATCHLIST_RESEARCH = {
-  asOf: "August 27, 2026",
-  overall: "This group spans three different AI-supply-chain stories at once — enterprise software riding AI-driven cloud demand (Oracle), the Korean memory duopoly living through the same supercycle as Micron and SanDisk (SK hynix), and the equipment and IP makers whose fortunes rise and fall with everyone else's capex (ASML, KLA, Lumentum, Arm) — with results ranging from statistically cheap to among the most expensive stocks in the entire market.",
-  data: {
-    ORCL: { pe: 24.4, peHistory: "Well below its own 10-year median PEG (1.23 vs. 2.79) — despite the AI narrative, Oracle actually screens statistically cheap relative to its own history, not expensive.", peg: "0.60", pb: "High (est. — small equity base relative to debt)", roic: "11.5%", fcf: "–$23.7B (FY26) — capex-driven, funding its cloud buildout", earningsGrowth: "Revenue +17.4% YoY, EPS +36.5% YoY (FY26)", outlookNote: "The cheapest-looking growth story in this group on a PEG basis, but that cheapness is precisely because the market is pricing in real execution risk on debt-funded, capex-heavy cloud expansion." },
-    DELL: { pe: "Pending — reports Aug 28", peHistory: "Not yet meaningful — wait for the report.", peg: "Pending", pb: "Pending", roic: "Pending", fcf: "Pending", earningsGrowth: "Reports Aug 28; consensus expects ~$29.4B revenue and $2.35 EPS, with AI-server demand the main swing factor", outlookNote: "Reports right around when this snapshot was taken — the most immediately time-sensitive row in this table. Refresh Research after Aug 28 for real numbers instead of consensus guesses." },
-    SKHY: { pe: "Data anomaly — some providers show under 1.0x, almost certainly a KRW/USD conversion artifact rather than a real multiple", peHistory: "Extremely volatile even by memory-cycle standards: +30% single-day surge, a 35% July decline, and a 9% drop on its own blowout Q2 report — the market seems more worried about supply-demand sustainability than current results.", peg: "Not reliably available", pb: "Not reliably available", roic: "Not reliably available, but profitability is currently extraordinary", fcf: "Record margins (76% operating margin, Q2) despite heavy HBM capex", earningsGrowth: "Revenue +257% YoY, net income +1,242% YoY (Q2 2026) — yet shares still fell ~9% on the report", outlookNote: "The most extreme number in this entire table (+1,242% net income growth) and also proof that extraordinary results don't guarantee a positive stock reaction when the market is already pricing in a supercycle." },
-    EWY: { pe: "N/A — broad-market ETF", peHistory: "Not applicable to a fund; its price action largely tracks sentiment on Samsung Electronics and SK hynix, its two largest holdings.", peg: "N/A", pb: "N/A", roic: "N/A", fcf: "N/A", earningsGrowth: "N/A — tracks roughly 100 South Korea large/mid-cap stocks", outlookNote: "Less a company than a proxy for how much conviction the market currently has in Korea's memory-chip duopoly — worth watching alongside SK hynix's own row above, not instead of it." },
-    ARM: { pe: "~205x — among the most expensive stocks in this table", peHistory: "Consistently one of the priciest stocks in this group for years, not a recent spike — reflects the market's view of Arm's licensing-royalty growth runway rather than a new re-rating.", peg: "~6+ (historically rich relative to growth per most sources)", pb: "~25x+ (elevated)", roic: "Modest relative to its lofty valuation (precise figure not found)", fcf: "Profitable but small relative to market cap", earningsGrowth: "~20–30% (analyst estimates; profits growing off a small base)", outlookNote: "The clearest case in this table of a stock priced for a very long, very confident growth story — small disappointments here would have further to fall than almost anything else in this group." },
-    ASML: { pe: "~30–36x (range across sources)", peHistory: "Trailing EPS growth of just +7.2% YoY sits well below its own 3-year average of +20.5% — a PEG of 2.68 (vs. a more typical historical range) suggests the market is paying a premium for growth that has actually slowed.", peg: "2.68", pb: "Not reliably sourced this round", roic: "Not reliably sourced this round", fcf: "Historically strong and consistent (precise current figure not found)", earningsGrowth: "+7.2% YoY (latest quarter) — well below its own 3-year average of +20.5%", outlookNote: "A rare case in this table where the valuation looks more stretched relative to its OWN history than relative to peers — worth watching if lithography demand growth doesn't reaccelerate." },
-    KLAC: { pe: "~54x", peHistory: "Not reliably sourced this round.", peg: "Not reliably sourced this round", pb: "Not reliably sourced this round", roic: "Structurally strong (precise figure not found) — high-margin equipment leader", fcf: "Typically strong and consistent (precise current figure not found)", earningsGrowth: "Not reliably sourced this round", outlookNote: "The least-researched row in this table this round — only P/E was confidently sourced. Click Refresh Research for a fuller picture." },
-    LITE: { pe: "~155x (high, but see PEG)", peHistory: "Just delivered a beat-and-raise quarter (EPS +9.5% vs. estimate) with revenue more than doubling year-over-year — a PEG under 1.0 suggests the market hasn't fully priced in how fast this growth actually is.", peg: "0.94", pb: "Not reliably sourced this round", roic: "Not reliably sourced this round", fcf: "Improving alongside the revenue ramp (precise figure not found)", earningsGrowth: "Revenue +109% YoY, EPS $3.23 vs. $2.95 est. (Q4 FY26) — shares rallied toward 52-week highs on the report", outlookNote: "The most textbook 'growth at a reasonable price' story in this table by the numbers (PEG under 1.0 despite a triple-digit headline P/E) — the optical-components pick-and-shovel play on AI datacenter buildouts." }
+// Researched by Claude via live web search on September 21, 2026 and re-checked on September 22
+// (no counter in this page reported in between; macro wording updated) — a dated fallback snapshot, not a live feed. Connect a Gemini key to replace it with live research.
+//
+// Sourcing, so each figure can be checked:
+//  - P/E, forward P/E, PEG, P/B, ROIC and FCF: one source for comparability — stockanalysis.com
+//    "Statistics" pages, US close on Sep 18, 2026. FCF definitions differ between providers.
+//  - Earnings growth: company press releases / SEC filings for the latest REPORTED quarter
+//    (report dates noted per row). Where one-time items distort EPS, that's called out.
+//  - "Own history" P/E ranges are Claude's approximate recall of multi-year ranges, NOT a
+//    sourced 5-year average — they're flagged "approx." in the text. Verify before relying on them.
+//  - Pullback/outlook notes cite specific, dated events (Fed hike Sep 16, AI-lab CEO essays
+//    Sep 14, post-earnings moves). Nothing here is investment advice.
+const RESEARCH_SNAPSHOT = {
+  asOf: "September 21, 2026",
+  metricsAsOf: "Sep 18, 2026 close",
+  groups: {
+    mag7: {
+      pullbackOverall: "September's weakness is macro-first: the Fed hiked 25bp to 3.75–4.00% on Sep 16 — its first hike in over three years — with August inflation at 3.4%, after oil spiked above $100 on the US–Iran conflict earlier in the month; the 10-year yield has hovered around 5% (4.97% on Sep 21 as oil eased back to ~$93). Inside the group the split is capex: Apple, Alphabet and Nvidia are well up over 52 weeks, while Meta, Tesla and Microsoft sit below where they were a year ago.",
+      outlookOverall: "Earnings are strong almost across the board, and CNBC reported in early August that a Magnificent 7 ETF had fallen to a record-low valuation. The next leg depends less on growth than on rates and on proof that record AI capex earns its keep.",
+      data: {
+        AAPL: { pe: 38.6, fwdPe: 36.5, peg: "3.28", pb: "~45.7x", roic: "~102%", fcf: "$136.7B TTM",
+          earningsGrowth: "FQ3 FY26 (Jun qtr, reported Jul 30): EPS $2.02, +29% YoY; revenue $109.4B, +16%; iPhone +22%, Greater China +22%, Services +12%.",
+          peHistory: "At ~38.6x trailing (~36.5x forward) Apple sits above the high-20s-to-low-30s range it held for most of the past five years (approx.) — the ~41% 52-week run has outpaced even a +29% EPS quarter, so the multiple has expanded.",
+          pullbackNote: "Barely a pullback — trading within a few percent of its ~$344 all-time high as the iPhone 18 launch is tracked for demand signals; one of the few mega-caps holding up through the rate-hike and AI-sentiment selloff.",
+          outlookNote: "iPhone 18 sell-through and the FQ4 report are the near-term tests. With a PEG above 3 the bar is high: any softness in Services (which missed estimates in FQ3) or China would hit a stock priced for steady upside." },
+        MSFT: { pe: 27.5, fwdPe: 25.0, peg: "1.55", pb: "~8.3x", roic: "~26%", fcf: "$67.0B TTM",
+          earningsGrowth: "FQ4 FY26 (reported Jul 29): revenue $90B, +18% YoY; GAAP EPS $4.81, +32%; Azure +43%, passing $100B a year; commercial RPO +84% to $678B (+25% excluding OpenAI).",
+          peHistory: "~27.5x trailing is below the low-to-mid-30s it often commanded in 2023–25 (approx.) — the multiple has de-rated even as earnings grew, a sign the market is pricing the capex bill, not the growth rate.",
+          pullbackNote: "Down ~3% over 52 weeks despite strong results. The drag is AI capex and concentration: most of the RPO jump is tied to OpenAI (ex-OpenAI growth was 25%), and ~5% 10-year yields weigh on long-duration tech multiples.",
+          outlookNote: "Fundamentals (Azure +43%, EPS +32%) look better than the share price implies. The swing factor is how fast capex converts to returns and how much of the backlog depends on a single customer." },
+        GOOGL: { pe: 17.5, fwdPe: 26.1, peg: "2.04", pb: "~6.9x", roic: "~25%", fcf: "$53.3B TTM",
+          earningsGrowth: "Q2 2026: revenue $119.8B, +24% YoY; Google Cloud $24.8B, +82%. EPS $9.11 vs $2.31 a year ago, but inflated by a ~$99B unrealized gain on equity holdings, so headline EPS growth isn't representative.",
+          peHistory: "~17.5x trailing looks cheap but is flattered by the one-off gain; on forward earnings (~26x) Alphabet trades above its usual low-to-mid-20s (approx.) — a real re-rating as Cloud growth accelerated.",
+          pullbackNote: "Up ~40% over 52 weeks, so dips come from a high base. The overhang is spending: Q2 capex of $44.9B pushed quarterly free cash flow to –$5.9B, and rising yields make investors less patient about payback.",
+          outlookNote: "Cloud at +82% is the fastest of the big three clouds. The debate is capex intensity versus returns, and whether Search holds up against AI competitors." },
+        AMZN: { pe: 20.4, fwdPe: 27.6, peg: "1.33", pb: "~5.0x", roic: "~12%", fcf: "–$11.6B TTM",
+          earningsGrowth: "Q2 2026 (reported Jul 30): revenue $200.6B, +20% YoY (first $200B quarter); AWS $42.2B, +37% (fastest in 18 quarters); GAAP EPS $5.75, +242% — flattered by a $53.4B non-cash Anthropic revaluation gain.",
+          peHistory: "~20x trailing is distorted by the Anthropic gain; on ~27.6x forward, Amazon is still far below the 50x-plus it carried in its reinvestment era (approx.) — profits have matured faster than the multiple has fallen.",
+          pullbackNote: "Up only ~10% over 52 weeks, lagging peers, after 2026 capex guidance was raised to ~$220B and trailing free cash flow turned negative; higher rates make that cash burn harder to look through.",
+          outlookNote: "AWS reacceleration is the core bull case and looks real. The risk is how long the capex-driven cash deficit lasts. Q3 guide: sales $197–202B, operating income $22.5–26.5B." },
+        NVDA: { pe: 28.1, fwdPe: 18.5, peg: "0.35", pb: "~23x", roic: "~92%", fcf: "$127.0B TTM",
+          earningsGrowth: "Q2 FY27 (reported Aug 26): revenue $96.2B, +106% YoY; non-GAAP EPS $2.22, +120%; Data Center $89.0B, +117%. Q3 guide $108B ±2%.",
+          peHistory: "~28x trailing and ~18.5x forward is near the low end of its AI-era range (it often traded at 40–60x+ trailing in 2023–25, approx.) — earnings have grown faster than the price, compressing the multiple.",
+          pullbackNote: "Jumped 8.7% the day after its Aug 26 beat, then got caught in the September chip selloff after AI-lab CEOs urged slower capability gains. Post-earnings watch items: $108.5B of guarantee exposure, China excluded from guidance, and a 74% gross-margin guide seen as light.",
+          outlookNote: "A ~0.35 PEG makes it statistically the cheapest growth in the Mag 7, and management pointed to ~70% revenue growth for FY28. Risks: revenue quality tied to customer financing, China policy, and memory costs creeping into margins." },
+        META: { pe: 25.1, fwdPe: 20.6, peg: "1.02", pb: "~6.5x", roic: "~25%", fcf: "$41.0B TTM (Q2 alone: $0.8B)",
+          earningsGrowth: "Q2 2026: revenue $60.8B, +28% YoY (beat); EPS $6.18, –14% YoY vs ~$7.17 est., hit by $2.4B legal and $1.2B severance charges. Q2 free cash flow just $0.8B as capex reached $31.1B.",
+          peHistory: "~25x trailing / ~21x forward is roughly in line with its post-2023 range (approx.) — the market isn't paying a premium for the ad business while capex swallows cash flow.",
+          pullbackNote: "Down ~14% over 52 weeks. Fell ~10% after hours on the Q2 miss, as the 2026 capex range moved up to $130–145B and quarterly free cash flow fell below $1B — investors no longer give AI spending the benefit of the doubt.",
+          outlookNote: "The ad engine is healthy (+28% revenue), so the question is capex discipline. If one-offs fade and spending plateaus, ~21x forward is undemanding; if capex keeps ratcheting, free cash flow stays thin." },
+        TSLA: { pe: 378.0, fwdPe: 188.3, peg: "6.96", pb: "~16.6x", roic: "~5.5%", fcf: "$5.8B TTM (Q2 alone: –$1.1B)",
+          earningsGrowth: "Q2 2026 (reported Jul 22): revenue $28.2B, +0.5% YoY; adjusted EPS $0.33 vs $0.54 est. (about –18% YoY); operating margin 1.4%; free cash flow –$1.09B.",
+          peHistory: "~378x trailing / ~188x forward is high even by Tesla's very wide history. With a 1.4% operating margin the P/E mostly prices robotaxi and Optimus optionality rather than current earnings.",
+          pullbackNote: "Down ~14% over 52 weeks. EPS missed by ~38%, free cash flow turned negative as 2026 capex was guided above $25B, and autos sold off in mid-September after Volkswagen cut its profit forecast.",
+          outlookNote: "Deliveries rose 25% YoY in Q2, so demand hasn't collapsed. The stock hinges on autonomy milestones justifying $25B+ a year of capex; Q3 delivery numbers are the next data point." }
+      }
+    },
+    semi: {
+      pullbackOverall: "Chips took the brunt of September. On Sep 14, essays from Anthropic's and OpenAI's CEOs urging a slower pace of AI capability gains knocked Micron and SanDisk down 6%, AMD 6% and Intel 7% in a day, even though neither lab signaled lower capex. Earlier, $100+ oil and ~4.9% yields had already pressured high-beta semis.",
+      outlookOverall: "Fundamentals have rarely been stronger — Broadcom's AI revenue +221%, Micron guiding to $50B for a single quarter — so the group now trades on second-order questions: margins during product ramps, how long memory pricing holds, and whether AI training budgets keep growing.",
+      data: {
+        AMD: { pe: 142.9, fwdPe: 50.6, peg: "0.77", pb: "~13.6x", roic: "~9.8%", fcf: "$8.4B TTM",
+          earningsGrowth: "Q2 2026 (reported Aug 5): revenue $11.54B, +50% YoY; adjusted EPS $1.66 vs $1.62 est.; Data Center $6.7B, +107%. Q3 guide $13.0B (+41%).",
+          peHistory: "~143x trailing is inflated by acquisition amortization; ~51x forward is still high versus the ~30–45x forward it has often traded at (approx.) — priced for the Helios/MI450 ramp to deliver.",
+          pullbackNote: "Fell ~8% after hours on Q2 despite beating, as gross margin (54%) missed the ~56% consensus while the Helios ramp dilutes mix; fell another 6% on Sep 14 in the AI-slowdown selloff.",
+          outlookNote: "Up ~250% over 52 weeks, backed by a reported 2GW Anthropic Helios commitment and Azure expansion. The growth story looks intact; margins through the ramp are the variable to watch." },
+        AVGO: { pe: 45.7, fwdPe: 20.7, peg: "0.38", pb: "~17.1x", roic: "~31%", fcf: "$39.4B TTM",
+          earningsGrowth: "Q3 FY26 (reported Sep 2): revenue $29.6B, +86% YoY; non-GAAP EPS $3.32 vs $1.69 (+96%); AI semiconductor revenue $16.7B, +221%. Q4 guide ~$34.8B (+93%), with AI semis ~$21.7B.",
+          peHistory: "~21x forward is well below the ~30x-plus forward multiples it often carried in 2024–25 (approx.) — earnings have outrun the share price.",
+          pullbackNote: "Fell ~5–6% after its Q3 report: the beat was narrow and Q4 guidance, though huge, trailed the most optimistic AI expectations. Only ~3% higher over 52 weeks despite nearly doubling revenue.",
+          outlookNote: "A ~0.38 PEG is among the lowest in this page. Risks are customer concentration in custom AI accelerators and a market that now punishes 'beat, but not by enough.'" },
+        INTC: { pe: "n/m (GAAP loss)", fwdPe: 64.5, peg: "0.93", pb: "~6.3x", roic: "~3.4%", fcf: "$2.8B TTM",
+          earningsGrowth: "Q2 2026 (reported Jul 23): revenue $16.1B, +25% YoY (fastest growth in 15+ years); non-GAAP EPS $0.42 vs $0.22 est.; GAAP loss of $2.16/share on a $12.6B non-operating charge. Foundry +31%.",
+          peHistory: "No meaningful trailing P/E (GAAP loss). ~64x forward is far above the low-teens it traded at as a mature chipmaker (approx.) — the market is pricing a turnaround, not current earnings.",
+          pullbackNote: "Up ~336% over 52 weeks, so pullbacks start from a stretched base; fell 7% on Sep 14 in the AI-slowdown selloff.",
+          outlookNote: "Data Center & AI +59% and a Q3 guide of ~$16.3B support the turnaround. ROIC of ~3% shows how far profitability still has to go." },
+        QCOM: { pe: 20.7, fwdPe: 19.2, peg: "3.11", pb: "~6.8x", roic: "~26%", fcf: "$10.4B TTM",
+          earningsGrowth: "Q3 FY26 (Jun qtr): revenue $9.95B, –4% YoY; non-GAAP EPS $2.21, –20%. Handsets –20%, but automotive +61% and IoT +9%.",
+          peHistory: "~20.7x trailing is a little above its usual mid-teens range (approx.) — because earnings fell, not because the price ran.",
+          pullbackNote: "Slid after its Q3 report despite a revenue beat as handset revenue fell 20%. Only ~8% up over 52 weeks — a laggard in a strong year for semis.",
+          outlookNote: "Diversification is working (autos: 23 straight quarters of double-digit growth) and it closed the Modular acquisition for AI software, but the handset decline sets the tone. Q4 guide: $9.7–10.5B revenue." },
+        TXN: { pe: 40.5, fwdPe: 27.6, peg: "1.16", pb: "~13.5x", roic: "~26%", fcf: "$5.4B TTM (company-reported: $6.5B)",
+          earningsGrowth: "Q2 2026 (reported Jul 22): revenue $5.46B, +23% YoY; EPS $2.14, +52%. Q3 guide: revenue $5.65–6.15B, EPS $2.23–2.57.",
+          peHistory: "~40x trailing is well above the roughly mid-20s it averaged over the past five years (approx.); ~28x forward assumes the analog upcycle continues.",
+          pullbackNote: "Up ~48% over 52 weeks and holding near ~$265 after its beat. The near-term headwind is the September rate shock, with industrial stocks down five straight weeks.",
+          outlookNote: "A broad analog recovery with rising guidance; the premium multiple leaves little room if industrial and auto demand stall." },
+        MU: { pe: 22.9, fwdPe: 7.0, peg: "0.04", pb: "~11.4x", roic: "~68%", fcf: "$26.2B TTM",
+          earningsGrowth: "Q3 FY26 (Jun qtr): revenue $41.5B vs $9.3B a year ago (+346%); non-GAAP EPS $25.11 vs $1.91. Q4 guide $50.0B ±$1B, EPS $31.00 ±$1.00. Next report: Sep 30.",
+          peHistory: "~23x trailing but ~7x forward — the classic memory-cycle pattern where the multiple looks lowest at peak earnings. For cyclicals a very low forward P/E is often a caution signal rather than a bargain signal.",
+          pullbackNote: "Memory led the September selloff: –6% on Sep 14 after the AI-lab CEO essays, and –4% on Sep 10 as oil and yields spiked. Still ~+535% over 52 weeks.",
+          outlookNote: "The Sep 30 FQ4 print is the catalyst: consensus is ~$50.8B revenue and ~$31.28 EPS (+932% YoY, per Invezz), and Susquehanna expects DRAM prices +50% q/q. The long-run risk is the eventual supply response." },
+        SNDK: { pe: 24.3, fwdPe: 8.4, peg: "0.21", pb: "~17.0x", roic: "~102%", fcf: "$11.5B TTM",
+          earningsGrowth: "Q4 FY26 (reported Aug 5): revenue $8.97B, +372% YoY; non-GAAP EPS $39.25 vs $0.29; gross margin 84.6%. Q1 FY27 guide $10.3–10.8B, EPS $44–46.",
+          peHistory: "Too short a history as a standalone company (spun off from Western Digital in 2025) for a meaningful own-average; ~8x forward is low in absolute terms, as is typical at peak memory pricing.",
+          pullbackNote: "–6% on Sep 14 with the memory group, after jumping ~12% on Sep 5. Swings are extreme because the stock is up ~1,800% over 52 weeks.",
+          outlookNote: "About two-thirds of Q4's sequential growth came from higher prices rather than volume, which makes results very sensitive to the direction of NAND pricing." }
+      }
+    },
+    watchlist: {
+      pullbackOverall: "The watchlist splits in two: AI-infrastructure names still riding strong results (Dell, Lumentum), and names hit by financing, policy or cycle worries — Oracle (debt-funded capex), ASML and KLA (China export risk and an equipment rotation), and SK hynix and EWY (the memory selloff).",
+      outlookOverall: "Backlogs are the story here — Oracle's $664B RPO, Dell's $95B AI backlog — so the key question is conversion: how much of that contracted demand turns into profit before financing costs, supply cycles or export rules change.",
+      data: {
+        ORCL: { pe: 23.1, fwdPe: 17.3, peg: "0.57", pb: "~7.2x", roic: "~11%", fcf: "–$28.7B TTM",
+          earningsGrowth: "Q1 FY27 (reported Sep 10): revenue $19.35B, ~+30% YoY; non-GAAP EPS $1.92 vs $1.74 est.; GAAP EPS $1.56 vs $1.01. Cloud infrastructure +121%; RPO a record $664B; FY27 revenue outlook raised to at least $90B.",
+          peHistory: "~23x trailing / ~17x forward is below where it traded at its 2025 AI-backlog peak, when it ran well above 30x (approx.) — the market is discounting the debt-funded buildout.",
+          pullbackNote: "Down ~51% over 52 weeks from the September 2025 backlog spike. Quarterly capex is now ~$28B and free cash flow is deeply negative (~–$28.7B TTM), which matters more as yields approach 5%.",
+          outlookNote: "Momentum is strong (cloud infrastructure +121%, Q2 guide +30–34%), but one analysis notes RPO growth slowing to ~40% on a tougher base, and funding costs are rising." },
+        DELL: { pe: 33.2, fwdPe: 20.2, peg: "0.53", pb: "n/a", roic: "~29%", fcf: "$8.6B TTM",
+          earningsGrowth: "Q2 FY27 (reported Sep 1): revenue $47.0B, +58% YoY; non-GAAP EPS $7.04, +203%; AI server revenue $16.4B, +100%; record $60.9B AI orders and $95B backlog. FY27 revenue guide raised to $192B.",
+          peHistory: "~20x forward is well above the ~10–15x it traditionally traded at as a hardware maker (approx.) — the market now values it partly as an AI-infrastructure play.",
+          pullbackNote: "Not much of a pullback on fundamentals: shares jumped ~9% on the guidance raise and are up ~336% over 52 weeks. Dips mostly reflect sector-wide AI-hardware de-risking.",
+          outlookNote: "A $95B backlog gives unusual visibility. The open question is how much of it converts at profitable margins." },
+        SKHY: { pe: 9.3, fwdPe: 4.6, peg: "n/a", pb: "~5.7x", roic: "~62%", fcf: "~$66B TTM (USD, per stockanalysis)",
+          earningsGrowth: "Q2 2026 (reported Jul 28): revenue ₩79.3T, +257% YoY; operating profit ₩60.5T, +557%; net income ₩93.9T, +1,242%; operating margin 76%. HBM4 mass shipments began.",
+          peHistory: "~9x trailing / ~4.6x forward on the US ADR — the earlier sub-1x reading was a currency-unit artifact. Memory makers usually look cheapest at cycle peaks, so a low multiple isn't by itself a value signal.",
+          pullbackNote: "Among the hardest hit in September: –7% on Sep 14 and more than –5% on Sep 10 as oil and yields spiked. Korean shares have also faced foreign selling, partly offset by Samsung and SK buybacks.",
+          outlookNote: "HBM leadership and a 76% operating margin are exceptional. The stock trades on how long HBM supply stays tight." },
+        EWY: { pe: "~13.3x (fund)", fwdPe: null, peg: "N/A", pb: "N/A", roic: "N/A", fcf: "N/A",
+          earningsGrowth: "N/A — ETF. Its two largest holdings, SK hynix (~24%) and Samsung Electronics (~22%), drive most of the earnings story.",
+          peHistory: "A fund P/E of ~13.3x is above Korea's traditional single-digit-to-low-teens market multiple (approx.), reflecting the memory boom in its top two holdings.",
+          pullbackNote: "About 18% below its 52-week high ($181.31 vs $220.89 on Sep 18) as memory stocks sold off; still +132% year-to-date.",
+          outlookNote: "Effectively a leveraged read on the memory cycle (~45% in two names) plus Korean flows and the won; buybacks by Samsung and SK have supported the index." },
+        ARM: { pe: 281.3, fwdPe: 115.4, peg: "2.91", pb: "~34x", roic: "~14%", fcf: "$1.5B TTM",
+          earningsGrowth: "Q1 FY27 (reported Jul 29): revenue $1.29B, +22% YoY; royalties +22%, licensing +23%; non-GAAP EPS $0.45, +29%; data-center royalties more than doubled. Q2 guide $1.38B ±$50M.",
+          peHistory: "~281x trailing / ~115x forward — consistently the priciest stock in this group since its IPO; the multiple prices the royalty growth runway rather than current profit.",
+          pullbackNote: "Fell ~8% after a record Q1, as 22% growth didn't match the pace the valuation implies. Still ~+80% over 52 weeks.",
+          outlookNote: "Data-center royalties doubling and more than $2B of demand for its AGI CPU are real catalysts, but at over 100x forward earnings small disappointments get magnified." },
+        ASML: { pe: 52.5, fwdPe: 29.6, peg: "n/a", pb: "~25.6x", roic: "~66%", fcf: "$11.5B TTM",
+          earningsGrowth: "Q2 2026 (reported Jul 15): net sales €9.3B (~+21% YoY); net income €2.9B; EPS €7.59; gross margin 54%. Q3 guide €11–12B; 2026 outlook raised to €43–45B.",
+          peHistory: "~52x trailing is above its roughly 35–45x historical range (approx.), while ~30x forward is closer to normal — the market is paying up for the raised 2026 outlook.",
+          pullbackNote: "Fell for about a month (~6%) into mid-September on China export-control worries — China is guided to ~20% of 2026 revenue — and reports of Chinese homegrown DUV tools. Equipment peers fell harder (KLA ~–13%).",
+          outlookNote: "An EUV monopoly and a raised outlook underpin the bull case (Bernstein's target is $2,859); China policy is the key overhang." },
+        KLAC: { pe: 48.4, fwdPe: 32.5, peg: "1.61", pb: "~36x", roic: "~67%", fcf: "$3.8B TTM",
+          earningsGrowth: "Q4 FY26 (Jun qtr, reported Jul 28): revenue $3.66B, +15% YoY; non-GAAP EPS $1.05 vs $0.94 (+12%, split-adjusted after a 10-for-1 split). Q1 FY27 guide $4.0B ±$0.2B, EPS $1.16 ±$0.10.",
+          peHistory: "~48x trailing is roughly double the ~20–25x it typically traded at over the past five years (approx.) — among the most stretched versus its own history in this table.",
+          pullbackNote: "Down ~13% over the month to mid-September as semiconductor-equipment stocks sold off after a strong run, alongside ASML's China worries.",
+          outlookNote: "Management says growth trends are 'strengthening' into late 2026 and 2027. With a premium multiple, delivering on that guide matters." },
+        LITE: { pe: "n/m (GAAP loss)", fwdPe: 43.0, peg: "0.40", pb: "~17.8x", roic: "~16%", fcf: "$0.3B TTM",
+          earningsGrowth: "Q4 FY26 (reported Aug 11): revenue $1.01B, +109% YoY; non-GAAP EPS $3.23 vs $0.88; GAAP loss from a one-time $7.8B non-cash charge on convertible-note equitization. Q1 FY27 guide $1.225–1.275B, EPS $4.05–4.35.",
+          peHistory: "No meaningful trailing P/E after the one-time charge; ~43x forward with a ~0.40 PEG suggests growth is outpacing the multiple.",
+          pullbackNote: "Optical names swing hard: –9% on Jul 28 and –6% on Aug 28 as the AI-optics trade cooled, then higher in mid-September as analysts bet on AI optical networking. Still ~+470% over 52 weeks.",
+          outlookNote: "Revenue has doubled and guidance implies more growth; the stock's volatility tracks sentiment about AI data-center spending." }
+      }
+    }
   }
 };
 
@@ -343,63 +438,16 @@ function logApiError(context, error){
   console.error("[PeakWatch API]", context, error);
 }
 
-async function fetchJsonResilient(url){
-  let res;
-  try{
-    res = await fetch(url);
-  }catch(networkErr){
-    logApiError("Direct fetch failed: " + url, networkErr);
-    // fetch() itself threw — this is the actual CORS/network-failure case, worth a proxy retry
-    try{
-      const proxied = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
-      const res2 = await fetch(proxied);
-      if(!res2.ok) throw new Error("HTTP " + res2.status);
-      return await res2.json();
-    }catch(proxyErr){
-      logApiError("Fallback proxy also failed: " + url, proxyErr);
-      throw new Error(
-        "Couldn't reach the provider directly (likely a network or CORS block: " + networkErr.message + "), " +
-        "and the fallback proxy also failed (" + proxyErr.message + ")."
-      );
-    }
-  }
-  // We got a real response — CORS isn't the issue. Surface the API's own error, don't waste time on a proxy retry.
-  if(!res.ok){
-    const body = await res.text().catch(() => "");
-    logApiError("Returned HTTP " + res.status + ": " + url, body);
-    throw new Error("HTTP " + res.status + (body ? " — " + body.slice(0, 220) : ""));
-  }
-  return await res.json();
-}
-
-// One call gets everything we need: current price, today's change, and the 52-week high —
-// Twelve Data's /quote response includes a fifty_two_week.high field directly, so there's no
-// need to separately fetch and scan a historical series ourselves.
+// Direct call to Twelve Data only. The old fallback re-sent the request (API key included, in the
+// URL) through a public third-party proxy whenever the direct call failed — removed: a key must
+// only ever travel to its own provider. The Content-Security-Policy above enforces the same rule.
 async function fetchQuoteWithHigh(symbol, apiKey){
-  const url = "https://api.twelvedata.com/quote?symbol=" + encodeURIComponent(symbol) + "&apikey=" + encodeURIComponent(apiKey);
-  let data;
   try{
-    data = await fetchJsonResilient(url);
+    return await PW.fetchQuoteWithHigh(symbol, apiKey);
   }catch(e){
     logApiError("fetchQuoteWithHigh failed for " + symbol, e);
-    if(/HTTP 401/.test(e.message) || /apikey/i.test(e.message)){
-      throw new Error("This API key isn't valid for Twelve Data — note it needs to be a Twelve Data key (twelvedata.com/pricing), not a key from a different provider. Click \"Change API key\" above to re-enter it.");
-    }
     throw e;
   }
-  if(data && data.status === "error"){
-    throw new Error(data.message || ("Twelve Data returned an error for " + symbol + "."));
-  }
-  if(!data || data.close === undefined){
-    throw new Error("No quote returned for " + symbol + ".");
-  }
-  const price = parseFloat(data.close);
-  const changePct = parseFloat(data.percent_change);
-  const athValue = data.fifty_two_week ? parseFloat(data.fifty_two_week.high) : NaN;
-  if(isNaN(price) || isNaN(athValue)){
-    throw new Error("Couldn't parse price/52-week-high for " + symbol + " from the response.");
-  }
-  return { price, changePct: isNaN(changePct) ? 0 : changePct, athValue };
 }
 
 function IndexRow({ def, state }){
@@ -485,122 +533,104 @@ function StockRow({ def, state, fundamentalsData }){
         atPeak ? "At peak" : drawdownPct.toFixed(2) + "%"
       )
     ),
-    h("td", { className: "num mono" }, fundamentals ? (typeof fundamentals.pe === "number" ? fundamentals.pe.toFixed(1) : fundamentals.pe) : "—"),
+    h("td", { className: "num mono" },
+      fundamentals ? (PW.formatPe(fundamentals.pe) || "—") : "—",
+      fundamentals && fundamentals.fwdPe !== null && fundamentals.fwdPe !== undefined ? h("div", { className: "subnum" }, "fwd " + PW.formatPe(fundamentals.fwdPe)) : null
+    ),
     h("td", { className: "num mono" }, fundamentals ? fundamentals.peg : "—"),
     h("td", { className: "num mono" }, fundamentals ? fundamentals.pb : "—"),
     h("td", { className: "num mono" }, fundamentals ? fundamentals.roic : "—"),
     h("td", { className: "mono", style: { whiteSpace: "normal", minWidth: "160px" } }, fundamentals ? fundamentals.fcf : "—"),
-    h("td", { style: { whiteSpace: "normal", minWidth: "150px" } }, fundamentals ? fundamentals.earningsGrowth : "—")
+    h("td", { style: { whiteSpace: "normal", minWidth: "220px" } }, fundamentals ? fundamentals.earningsGrowth : "—")
   );
 }
 
-/* ---------- Live research refresh via Gemini (BYOK, Google Search grounding) ----------
-   Twelve Data's fundamentals endpoint costs more per call than the free tier's entire
-   per-minute budget (confirmed earlier), SEC EDGAR explicitly disables CORS, and the finance
-   sites only expose data via paid scraping — so genuinely live fundamentals aren't available
-   for free. Instead, "Refresh Research" re-runs the same kind of research Claude did originally,
-   but live, via Gemini's free tier with Google Search grounding, triggered on demand (not
-   automatically) so you control when it spends API quota. */
+/* ---------- Live research via Gemini (BYOK, Google Search grounding) ----------
+   All research logic lives in peakwatch.research.js (unit-tested). This page only renders it.
+   Quota: 1 combined call for all three tables; only tables that come back incomplete are
+   retried (worst case 1 + 3 calls). Key, rate-limit and network errors are never retried. */
 
-const GEMINI_MODEL = "gemini-2.5-flash";
+const researcher = PW.createResearcher({ log: logApiError });
 
-function buildCombinedResearchPrompt(groups){
-  const sections = groups.map(g => {
-    const tickerList = g.companies.map(c => `${c.company} (${c.symbol})`).join(", ");
-    return `Group "${g.label}": ${tickerList}`;
-  }).join("\n");
+/* ---------- The three research cards rendered under every stock table ---------- */
+function ResearchCards({ group, research, status, quoteState, onRefresh }){
+  const refreshing = !!(status && status.refreshing);
+  const error = status && status.error;
+  const notice = status && status.notice;
+  const isLive = research.source === "live";
 
-  return `You are a financial research analyst. Using Google Search, find the latest publicly available data, as of today, for every company listed below, organized into groups:
+  const asOfLine = () => h("p", { className: "mood-asof" },
+    isLive ? "Live research (Gemini + Google Search) as of " + research.asOf : "Dated snapshot researched " + research.asOf + (research.metricsAsOf ? " · metrics at " + research.metricsAsOf : ""),
+    ". ",
+    h("button", { className: "btn-text", onClick: onRefresh, disabled: refreshing }, refreshing ? "Refreshing…" : "🔄 Refresh Research")
+  );
 
-${sections}
+  const staleTag = (entry) => (isLive && entry && !entry.live)
+    ? h("span", { className: "mood-tag", title: "Not returned by the latest live refresh — still showing the dated snapshot." }, "snapshot")
+    : null;
 
-For EACH company, find:
-1. Trailing P/E ratio (a number, or a short string if not meaningful)
-2. A brief 1-2 sentence note on how that P/E compares to the company's own historical average
-3. PEG ratio (or "n/m" if not meaningful due to negative or shrinking earnings)
-4. Price-to-book (P/B) ratio
-5. ROIC (return on invested capital) — a percentage, or a brief qualitative note if unavailable
-6. Most recent free cash flow figure or trend (brief)
-7. Most recent earnings growth (YoY), or note if the company hasn't reported its latest quarter yet
+  const head = (c, chips) => h("div", { className: "mood-head" },
+    h("span", { className: "mood-company" }, c.company),
+    h("span", { className: "mood-sym mono" }, c.symbol),
+    chips,
+    staleTag(research.companies[c.symbol])
+  );
+  const missing = "No assessment yet — click Refresh Research.";
 
-Also write, for EACH group separately:
-- One or two sentences summarizing that group's current overall market mood or theme, in a wry but factually accurate tone (not sensational, no investment advice)
-- For each company in that group, one concise sentence about the primary driver of its recent stock performance, same tone
+  return h("div", { className: "research-cards" },
+    h("div", { className: "mood-box" },
+      h("h2", { className: "serif" }, "📐 P/E vs. Each Company's Own History", h("span", { className: "mood-group" }, group.title)),
+      asOfLine(),
+      error ? h("div", { className: "mood-status error", role: "alert" }, error) : null,
+      notice ? h("div", { className: "mood-status" }, notice) : null,
+      h("p", { className: "mood-intro" },
+        "A high P/E alone says little — what matters is how it compares with the company's own typical range. A stock that has dropped can still be expensive against its history, and a high absolute P/E can be cheap for that company. Snapshot ranges marked \"approx.\" are estimates to verify, not a sourced 5-year average."
+      ),
+      h("ul", { className: "mood-list" },
+        group.companies.map(c => {
+          const f = research.companies[c.symbol] || {};
+          const pe = PW.formatPe(f.pe), fwd = PW.formatPe(f.fwdPe);
+          const chips = (pe || fwd) ? h("span", { className: "mood-chip mono" }, (pe ? "P/E " + pe : "") + (pe && fwd ? " · " : "") + (fwd ? "fwd " + fwd : "")) : null;
+          return h("li", { key: c.key }, head(c, chips), h("span", { className: "mood-note" }, f.peHistory || missing));
+        })
+      )
+    ),
 
-Respond with ONLY valid JSON, no markdown fences, no commentary before or after, in exactly this shape:
-{
-  "asOf": "<today's date, e.g. August 5, 2026>",
-  "groups": {
-    "<group label exactly as given above>": {
-      "overall": "...",
-      "companies": {
-        "<TICKER>": { "pe": "...", "peHistory": "...", "peg": "...", "pb": "...", "roic": "...", "fcf": "...", "earningsGrowth": "...", "outlookNote": "..." }
-      }
-    }
-  }
+    h("div", { className: "mood-box" },
+      h("h2", { className: "serif" }, "🗞️ What's Behind the Pullback", h("span", { className: "mood-group" }, group.title)),
+      asOfLine(),
+      research.pullbackOverall ? h("p", { className: "mood-overall serif" }, research.pullbackOverall) : null,
+      h("ul", { className: "mood-list" },
+        group.companies.map(c => {
+          const f = research.companies[c.symbol] || {};
+          const dd = PW.drawdownFor(quoteState[c.key]);
+          const chips = dd === null ? null : h("span", { className: "mood-chip mono " + (dd >= -0.05 ? "up" : "down"), title: "Live: price vs. Twelve Data's trailing 52-week high" }, dd >= -0.05 ? "at 52-wk high" : dd.toFixed(1) + "% vs 52-wk high");
+          return h("li", { key: c.key }, head(c, chips), h("span", { className: "mood-note" }, f.pullbackNote || missing));
+        })
+      )
+    ),
+
+    h("div", { className: "mood-box" },
+      h("h2", { className: "serif" }, "🔬 Contributing Factors & Outlook", h("span", { className: "mood-group" }, group.title)),
+      asOfLine(),
+      research.outlookOverall ? h("p", { className: "mood-overall serif" }, research.outlookOverall) : null,
+      h("ul", { className: "mood-list" },
+        group.companies.map(c => {
+          const f = research.companies[c.symbol] || {};
+          return h("li", { key: c.key },
+            head(c, null),
+            h("span", { className: "mood-note" }, f.outlookNote || missing),
+            f.earningsGrowth ? h("div", { className: "mood-eg" }, h("span", { className: "mood-eg-label mono" }, "Latest earnings"), f.earningsGrowth) : null
+          );
+        })
+      ),
+      research.sources && research.sources.length ? h("details", { className: "mood-sources" },
+        h("summary", null, "Sources Gemini cited (" + research.sources.length + ")" + (research.model ? " · " + research.model : "")),
+        h("ul", null, research.sources.map((s, i) => h("li", { key: i }, h("a", { href: s.uri, target: "_blank", rel: "noopener noreferrer nofollow" }, s.title))))
+      ) : null
+    )
+  );
 }
-Include an entry for every group and every ticker listed above, keyed exactly by the group label and ticker symbol given.`;
-}
-
-function parseRetryDelay(errorBody){
-  // Gemini's 429 responses often include a RetryInfo with a precise retryDelay (e.g. "56s")
-  const match = errorBody.match(/"retryDelay"\s*:\s*"(\d+)s"/);
-  return match ? match[1] : null;
-}
-
-async function fetchGeminiResearchCombined(apiKey, model, groups){
-  const url = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent";
-  const prompt = buildCombinedResearchPrompt(groups);
-  let res;
-  try{
-    res = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        tools: [{ google_search: {} }],
-        generationConfig: { maxOutputTokens: 8000 }
-      })
-    });
-  }catch(e){
-    logApiError("Gemini network failure (combined research)", e);
-    throw new Error("Couldn't reach the Gemini API (" + e.message + "). Check your internet connection and try again.");
-  }
-  if(!res.ok){
-    const body = await res.text().catch(() => "");
-    logApiError("Gemini returned HTTP " + res.status + " (combined research)", body);
-    let msg = "HTTP " + res.status;
-    try{
-      const parsed = JSON.parse(body);
-      if(parsed.error && parsed.error.message) msg += " — " + parsed.error.message;
-    }catch(_e){ if(body) msg += " — " + body.slice(0, 200); }
-    if(res.status === 400 || res.status === 403) msg += " (check that your Gemini API key is correct and active)";
-    if(res.status === 429){
-      const retrySec = parseRetryDelay(body);
-      msg += retrySec ? " (Gemini free-tier rate limit reached — retry in " + retrySec + "s)" : " (Gemini free-tier rate limit reached — wait a minute and try again)";
-    }
-    throw new Error(msg);
-  }
-  const data = await res.json();
-  const candidate = (data.candidates || [])[0];
-  const text = candidate && candidate.content && Array.isArray(candidate.content.parts)
-    ? candidate.content.parts.map(p => p.text || "").join("\n")
-    : "";
-  const clean = text.replace(/^```json\s*|^```\s*|```\s*$/gm, "").trim();
-  let parsed;
-  try{
-    parsed = JSON.parse(clean);
-  }catch(e){
-    logApiError("Failed to parse Gemini research JSON (combined)", { raw: text, error: e.message });
-    throw new Error("Gemini's response wasn't valid JSON, so it couldn't be parsed. Try refreshing again — this occasionally happens with longer research responses.");
-  }
-  if(!parsed.groups){
-    logApiError("Gemini research JSON missing groups object", parsed);
-    throw new Error("Gemini's response didn't include group data. Try refreshing again.");
-  }
-  return parsed;
-}
-
 
 function App(){
   const [apiKey, setApiKey] = useState("");
@@ -613,29 +643,17 @@ function App(){
   const [loadingAll, setLoadingAll] = useState(false);
   const [loadProgress, setLoadProgress] = useState(null); // { done, total }
 
-  // Research data starts as the static, dated snapshot and can be replaced with a live
-  // Gemini-researched refresh (see "Refresh Research" below) — never automatic, always on click.
-  const [magResearch, setMagResearch] = useState({ asOf: FUNDAMENTALS.asOf, overall: DRAWDOWN_COMMENTARY.overall, fundamentals: FUNDAMENTALS.data, notes: DRAWDOWN_COMMENTARY.notes });
-  const [semiResearch, setSemiResearch] = useState({ asOf: SEMI_FUNDAMENTALS.asOf, overall: SEMI_OUTLOOK.overall, fundamentals: SEMI_FUNDAMENTALS.data, notes: SEMI_OUTLOOK.notes });
-  // No pre-researched static snapshot exists for this group — it starts empty and relies entirely
-  // on "Refresh Research" (honest starting point rather than a fabricated snapshot).
-  const [watchlistResearch, setWatchlistResearch] = useState(() => {
-    const fundamentals = {}, notes = {};
-    Object.keys(WATCHLIST_RESEARCH.data).forEach(symbol => {
-      const entry = WATCHLIST_RESEARCH.data[symbol];
-      fundamentals[symbol] = { pe: entry.pe, peHistory: entry.peHistory, peg: entry.peg, pb: entry.pb, roic: entry.roic, fcf: entry.fcf, earningsGrowth: entry.earningsGrowth };
-      notes[symbol] = entry.outlookNote;
-    });
-    return { asOf: WATCHLIST_RESEARCH.asOf, overall: WATCHLIST_RESEARCH.overall, fundamentals, notes };
+  // Research starts from the dated snapshot and is replaced table-by-table with live Gemini
+  // research — automatically when a Gemini key is connected, and again on every main Refresh.
+  const [research, setResearch] = useState(() => {
+    const init = {};
+    GROUPS.forEach(g => { init[g.id] = PW.snapshotGroupState(RESEARCH_SNAPSHOT, g.id); });
+    return init;
   });
+  const [researchStatus, setResearchStatus] = useState({}); // groupId -> { refreshing, error, notice }
   const [geminiKey, setGeminiKey] = useState("");
   const [geminiKeyInput, setGeminiKeyInput] = useState("");
-  const [refreshingMag, setRefreshingMag] = useState(false);
-  const [refreshingSemi, setRefreshingSemi] = useState(false);
-  const [refreshingWatchlist, setRefreshingWatchlist] = useState(false);
-  const [magRefreshError, setMagRefreshError] = useState(null);
-  const [semiRefreshError, setSemiRefreshError] = useState(null);
-  const [watchlistRefreshError, setWatchlistRefreshError] = useState(null);
+  const researchInFlight = useRef(false);
 
   const handleSaveGeminiKey = () => {
     const trimmed = geminiKeyInput.trim();
@@ -643,51 +661,38 @@ function App(){
     setGeminiKey(trimmed);
   };
 
-  const RESEARCH_GROUPS = [
-    { label: "Magnificent 7 stocks", companies: MAG7, setResult: setMagResearch },
-    { label: "US semiconductor stocks", companies: SEMI, setResult: setSemiResearch },
-    { label: "tech and supply-chain stocks (Oracle, Dell, SK hynix, ASML, KLA, Lumentum, Arm, and the South Korea market)", companies: WATCHLIST, setResult: setWatchlistResearch }
-  ];
+  const setStatusFor = (ids, patch) => setResearchStatus(prev => {
+    const next = Object.assign({}, prev);
+    ids.forEach(id => { next[id] = Object.assign({}, prev[id], patch); });
+    return next;
+  });
 
-  // One combined Gemini call covers all three tables (previously three separate calls) — Gemini's
-  // free tier caps out at a small number of requests before a cooldown, and firing three calls on
-  // every connect and every refresh burned through that fast. This cuts usage to a third for the
-  // same result.
   const refreshAllResearch = async () => {
+    const allIds = GROUPS.map(g => g.id);
     if(!geminiKey){
-      setMagRefreshError("Connect a Gemini API key above first.");
-      setSemiRefreshError("Connect a Gemini API key above first.");
-      setWatchlistRefreshError("Connect a Gemini API key above first.");
+      setStatusFor(allIds, { refreshing: false, error: "Connect a Gemini API key above first.", notice: null });
       return;
     }
-    setRefreshingMag(true); setRefreshingSemi(true); setRefreshingWatchlist(true);
-    setMagRefreshError(null); setSemiRefreshError(null); setWatchlistRefreshError(null);
+    if(researchInFlight.current) return; // guards the auto-refresh effect racing a button click
+    researchInFlight.current = true;
+    setStatusFor(allIds, { refreshing: true, error: null, notice: null });
     try{
-      const result = await fetchGeminiResearchCombined(geminiKey, GEMINI_MODEL, RESEARCH_GROUPS);
-      RESEARCH_GROUPS.forEach(group => {
-        const groupResult = result.groups[group.label];
-        const fundamentals = {}, notes = {};
-        if(groupResult && groupResult.companies){
-          group.companies.forEach(c => {
-            const entry = groupResult.companies[c.symbol];
-            if(entry){
-              fundamentals[c.symbol] = { pe: entry.pe, peHistory: entry.peHistory, peg: entry.peg, pb: entry.pb, roic: entry.roic, fcf: entry.fcf, earningsGrowth: entry.earningsGrowth };
-              notes[c.symbol] = entry.outlookNote;
-            }
-          });
-        }
-        group.setResult({ asOf: result.asOf || new Date().toLocaleDateString(), overall: (groupResult && groupResult.overall) || "", fundamentals, notes });
+      await PW.runResearchRefresh({
+        apiKey: geminiKey,
+        groups: GROUPS,
+        researchGroups: researcher.researchGroups,
+        onGroupResult: (group, groupResult, meta) => setResearch(prev => Object.assign({}, prev, { [group.id]: PW.mergeLiveGroup(prev[group.id], group, groupResult, meta) })),
+        onGroupStatus: setStatusFor
       });
     }catch(e){
-      setMagRefreshError(e.message); setSemiRefreshError(e.message); setWatchlistRefreshError(e.message);
+      logApiError("Research refresh failed unexpectedly", e);
+      setStatusFor(allIds, { refreshing: false, error: "Research refresh failed unexpectedly (" + e.message + ").", notice: null });
     }finally{
-      setRefreshingMag(false); setRefreshingSemi(false); setRefreshingWatchlist(false);
+      researchInFlight.current = false;
     }
   };
 
-  // Auto-fetch fresh research the moment a Gemini key is connected — this is the earliest point
-  // "on page load" can actually mean, since no key (and so no way to call the API) exists before
-  // that in a bring-your-own-key setup. Runs once per key connection, not on every render.
+  // Auto-fetch fresh research the moment a Gemini key is connected. Runs once per key.
   useEffect(() => {
     if(geminiKey){
       refreshAllResearch();
@@ -754,6 +759,8 @@ function App(){
     setKeyInput("");
     setData({});
     setMagData({});
+    setSemiData({});
+    setWatchlistData({});
   };
 
   const anyLoaded = Object.values(data).some(d => d && d.quote);
@@ -772,7 +779,7 @@ function App(){
       h("p", { className: "note" },
         "Don't have a key? Get one free at ",
         h("a", { href: "https://twelvedata.com/pricing", target: "_blank", rel: "noopener" }, "twelvedata.com"),
-        ". Your key is kept in this browser tab's memory only — it's never saved to disk or sent anywhere except directly to Twelve Data, and you'll need to re-enter it next time you open this page."
+        ". Your key is kept in this browser tab's memory only — it's never saved to disk or sent anywhere except directly to Twelve Data (there is no proxy fallback, and the page's security policy blocks requests to any other host), and you'll need to re-enter it next time you open this page."
       )
     ) : h("div", null,
       anyLoaded ? h("div", { className: "ticker" },
@@ -812,12 +819,12 @@ function App(){
 
       !geminiKey ? h("div", { className: "keybox" },
         h("h2", { className: "serif", style: { fontSize: "1.1rem" } }, "Connect Gemini for live research"),
-        h("p", { style: { fontSize: "0.85rem" } }, "The P/E, PEG, P/B, ROIC, FCF, and Earnings Growth panels below start from a dated snapshot. Connecting a free Gemini API key from ", h("a", { href: "https://aistudio.google.com/apikey", target: "_blank", rel: "noopener" }, "aistudio.google.com"), " immediately fetches fresh research for all three tables (3 Gemini calls), then does the same each time you click the main Refresh button above — separate from your Twelve Data key, since it's a different provider."),
+        h("p", { style: { fontSize: "0.85rem" } }, "The valuation columns, Earnings Growth, and the three research cards under every table (P/E vs. own history, What's Behind the Pullback, Contributing Factors & Outlook) start from a dated snapshot. Connecting a free Gemini API key from ", h("a", { href: "https://aistudio.google.com/apikey", target: "_blank", rel: "noopener noreferrer" }, "aistudio.google.com"), " immediately pulls fresh, search-grounded research for all three tables, then does the same each time you click the main Refresh button above."),
         h("div", { className: "keyrow" },
           h("input", { type: "text", placeholder: "Paste your Gemini API key here", value: geminiKeyInput, onChange: e => setGeminiKeyInput(e.target.value) }),
           h("button", { className: "btn btn-primary", onClick: handleSaveGeminiKey, disabled: !geminiKeyInput.trim() }, "Connect")
         ),
-        h("p", { className: "note" }, "Kept in this tab's memory only, same as your Twelve Data key — never saved to disk. Connecting spends 3 Gemini API calls right away (one per table) to pull current data — within its generous free tier, but worth knowing before you click Connect.")
+        h("p", { className: "note" }, "Kept in this tab's memory only, same as your Twelve Data key — never saved to disk, and only ever sent to Google (in a request header, not the URL). Each refresh uses 1 Gemini call for all three tables; only if that response comes back truncated or incomplete does it retry the affected tables (up to 3 more calls). Rate-limit and key errors are never retried.")
       ) : null,
 
       h("div", { className: "table-wrap" },
@@ -855,40 +862,12 @@ function App(){
             )
           ),
           h("tbody", null,
-            MAG7.map(s => h(StockRow, { key: s.key, def: s, state: magData[s.key] || { loading: true }, fundamentalsData: magResearch.fundamentals }))
+            MAG7.map(s => h(StockRow, { key: s.key, def: s, state: magData[s.key] || { loading: true }, fundamentalsData: research.mag7.companies }))
           )
         )
       ),
 
-      h("div", { className: "mood-box" },
-        h("h2", { className: "serif" }, "📐 P/E vs. Each Company's Own History"),
-        h("p", { className: "mood-asof" }, "Researched as of ", magResearch.asOf, ". ", h("button", { className: "btn-text", onClick: refreshAllResearch, disabled: refreshingMag }, refreshingMag ? "Refreshing…" : "🔄 Refresh Research")),
-        magRefreshError ? h("div", { className: "status-box error", style: { marginBottom: "14px" } }, magRefreshError) : null,
-        h("p", { style: { color: "var(--ink-soft)", fontSize: "0.88rem", marginBottom: "16px" } },
-          "A high P/E alone doesn't say much — what matters more is how it compares to the company's own typical range. A stock that's dropped can still be expensive if its P/E remains well above its historical norm, and a stock trading at a high absolute P/E can still be reasonably priced if that's actually low for its own history."
-        ),
-        h("ul", { className: "mood-list" },
-          MAG7.map(s => {
-            const f = magResearch.fundamentals[s.symbol];
-            return h("li", { key: s.key },
-              h("span", { className: "mood-company" }, s.company, " "),
-              h("span", { className: "mood-note" }, f ? f.peHistory : "No data available.")
-            );
-          })
-        )
-      ),
-
-      h("div", { className: "mood-box" },
-        h("h2", { className: "serif" }, "🗞️ What's Behind the Pullback"),
-        h("p", { className: "mood-asof" }, "Researched as of ", magResearch.asOf, ". A snapshot from your last refresh, not a live feed — click Refresh Research above for the latest."),
-        h("p", { className: "mood-overall serif" }, magResearch.overall),
-        h("ul", { className: "mood-list" },
-          MAG7.map(s => h("li", { key: s.key },
-            h("span", { className: "mood-company" }, s.company, " "),
-            h("span", { className: "mood-note" }, magResearch.notes[s.symbol] || "No commentary available.")
-          ))
-        )
-      ),
+      h(ResearchCards, { group: GROUPS[0], research: research.mag7, status: researchStatus.mag7, quoteState: magData, onRefresh: refreshAllResearch }),
 
       h("h2", { className: "serif section-title" }, "US Semiconductor Stocks: Drawdown From 52-Week High"),
       h("p", { style: { color: "var(--ink-soft)", fontSize: "0.88rem", marginTop: "-8px", marginBottom: "14px" } }, "Nvidia is covered in the Magnificent 7 table above, so it isn't repeated here."),
@@ -910,23 +889,12 @@ function App(){
             )
           ),
           h("tbody", null,
-            SEMI.map(s => h(StockRow, { key: s.key, def: s, state: semiData[s.key] || { loading: true }, fundamentalsData: semiResearch.fundamentals }))
+            SEMI.map(s => h(StockRow, { key: s.key, def: s, state: semiData[s.key] || { loading: true }, fundamentalsData: research.semi.companies }))
           )
         )
       ),
 
-      h("div", { className: "mood-box" },
-        h("h2", { className: "serif" }, "🔬 Contributing Factors & Outlook"),
-        h("p", { className: "mood-asof" }, "Researched as of ", semiResearch.asOf, ". ", h("button", { className: "btn-text", onClick: refreshAllResearch, disabled: refreshingSemi }, refreshingSemi ? "Refreshing…" : "🔄 Refresh Research")),
-        semiRefreshError ? h("div", { className: "status-box error", style: { marginBottom: "14px" } }, semiRefreshError) : null,
-        h("p", { className: "mood-overall serif" }, semiResearch.overall),
-        h("ul", { className: "mood-list" },
-          SEMI.map(s => h("li", { key: s.key },
-            h("span", { className: "mood-company" }, s.company, " "),
-            h("span", { className: "mood-note" }, semiResearch.notes[s.symbol] || "No commentary available.")
-          ))
-        )
-      ),
+      h(ResearchCards, { group: GROUPS[1], research: research.semi, status: researchStatus.semi, quoteState: semiData, onRefresh: refreshAllResearch }),
 
       h("h2", { className: "serif section-title" }, "Tech & Supply Chain Watchlist: Drawdown From 52-Week High"),
       h("p", { style: { color: "var(--ink-soft)", fontSize: "0.88rem", marginTop: "-8px", marginBottom: "14px" } }, "Enterprise tech (Oracle, Dell), Korean memory exposure (SK hynix, and the broader South Korea market via EWY), and chip equipment / photonics (Arm, ASML, KLA, Lumentum)."),
@@ -948,31 +916,17 @@ function App(){
             )
           ),
           h("tbody", null,
-            WATCHLIST.map(s => h(StockRow, { key: s.key, def: s, state: watchlistData[s.key] || { loading: true }, fundamentalsData: watchlistResearch.fundamentals }))
+            WATCHLIST.map(s => h(StockRow, { key: s.key, def: s, state: watchlistData[s.key] || { loading: true }, fundamentalsData: research.watchlist.companies }))
           )
         )
       ),
 
-      h("div", { className: "mood-box" },
-        h("h2", { className: "serif" }, "🔬 Contributing Factors & Outlook"),
-        h("p", { className: "mood-asof" },
-          watchlistResearch.asOf ? "Researched as of " + watchlistResearch.asOf + ". " : "No research yet for this group — ",
-          h("button", { className: "btn-text", onClick: refreshAllResearch, disabled: refreshingWatchlist }, refreshingWatchlist ? "Refreshing…" : "🔄 Refresh Research")
-        ),
-        watchlistRefreshError ? h("div", { className: "status-box error", style: { marginBottom: "14px" } }, watchlistRefreshError) : null,
-        watchlistResearch.overall ? h("p", { className: "mood-overall serif" }, watchlistResearch.overall) : null,
-        h("ul", { className: "mood-list" },
-          WATCHLIST.map(s => h("li", { key: s.key },
-            h("span", { className: "mood-company" }, s.company, " "),
-            h("span", { className: "mood-note" }, watchlistResearch.notes[s.symbol] || "No commentary yet — click Refresh Research above.")
-          ))
-        )
-      )
+      h(ResearchCards, { group: GROUPS[2], research: research.watchlist, status: researchStatus.watchlist, quoteState: watchlistData, onRefresh: refreshAllResearch })
     ),
 
     h("div", { className: "disclaimer" },
       h("strong", null, "About this data: "),
-      "Prices come from Twelve Data's free tier and may be delayed rather than real-time tick data, and are fetched one symbol at a time with a short pause between each — the free tier allows only 8 requests per minute, and this tool now tracks 25 symbols per refresh (3 indexes, 7 Magnificent 7, 7 semiconductor stocks, 8 in the tech/supply-chain watchlist), so a full load takes a few minutes. \"52-Week High\" is Twelve Data's own computed trailing-52-week high for the symbol, returned directly by their quote endpoint. All three indexes are shown via their most widely-tracked ETF (SPY for the S&P 500, QQQ for the Nasdaq 100, URTH for MSCI World) rather than the raw index value — a deliberate choice for consistency and free-tier reliability, since raw index symbols are inconsistently available (or paywalled) across data providers, while these ETFs are freely quotable and track their index closely, if not identically (small tracking difference from fees). P/E, PEG, P/B, ROIC, Free Cash Flow, and Earnings Growth for all three stock tables are pulled live via Gemini (with your own free API key) using Google Search — automatically once you connect a key, and again each time you click the main Refresh button, so they stay current without a manual research step. Before connecting a key they show a dated fallback snapshot instead. We looked into fully live options first (Twelve Data's fundamentals endpoint, SEC EDGAR, Macrotrends, StockAnalysis.com) and none offer free, direct browser access: SEC EDGAR explicitly disables CORS for cross-origin requests, Twelve Data's fundamentals cost more per call than the free tier's entire per-minute budget, and the finance sites only expose data through paid third-party scraping services. Whether from the fallback snapshot or a live Gemini refresh, figures can vary by source (trailing vs. forward P/E, differing growth-rate assumptions for PEG) and are approximate rather than exact (\"n/m\" = not meaningful, e.g. for a company with shrinking earnings that breaks the PEG calculation). None of this is investment advice, and any AI-researched figure should be treated as a starting point to verify, not a guaranteed-current data feed."
+      "Prices come from Twelve Data's free tier and may be delayed rather than real-time tick data, and are fetched one symbol at a time with a short pause between each — the free tier allows only 8 requests per minute, and this tool now tracks 25 symbols per refresh (3 indexes, 7 Magnificent 7, 7 semiconductor stocks, 8 in the tech/supply-chain watchlist), so a full load takes a few minutes. \"52-Week High\" is Twelve Data's own computed trailing-52-week high for the symbol, returned directly by their quote endpoint. All three indexes are shown via their most widely-tracked ETF (SPY for the S&P 500, QQQ for the Nasdaq 100, URTH for MSCI World) rather than the raw index value — a deliberate choice for consistency and free-tier reliability, since raw index symbols are inconsistently available (or paywalled) across data providers, while these ETFs are freely quotable and track their index closely, if not identically (small tracking difference from fees). P/E (trailing and forward), PEG, P/B, ROIC, Free Cash Flow, Earnings Growth, and the three research cards under every table (P/E vs. own history, What's Behind the Pullback, Contributing Factors & Outlook) are pulled live via Gemini (your own free API key) using Google Search grounding — automatically once you connect a key, and again on each main Refresh. Sources Gemini cited are listed under each table. Before connecting a key they show a dated snapshot researched by Claude on September 21–22, 2026 (metrics from stockanalysis.com at the Sep 18 close; earnings from company releases); its 'own history' P/E ranges are approximate and marked as such. Rows a live refresh didn't return keep their snapshot values and are tagged 'snapshot'. Both API keys go only to their own provider: there is no third-party proxy fallback, and a Content-Security-Policy blocks requests to any other host. We looked into fully live options first (Twelve Data's fundamentals endpoint, SEC EDGAR, Macrotrends, StockAnalysis.com) and none offer free, direct browser access: SEC EDGAR explicitly disables CORS for cross-origin requests, Twelve Data's fundamentals cost more per call than the free tier's entire per-minute budget, and the finance sites only expose data through paid third-party scraping services. Whether from the fallback snapshot or a live Gemini refresh, figures can vary by source (trailing vs. forward P/E, differing growth-rate assumptions for PEG) and are approximate rather than exact (\"n/m\" = not meaningful, e.g. for a company with shrinking earnings that breaks the PEG calculation). None of this is investment advice, and any AI-researched figure should be treated as a starting point to verify, not a guaranteed-current data feed."
     )
   );
 }

@@ -183,23 +183,18 @@ function logApiError(context, error){
   console.error("[ResaleWatch API]", context, error);
 }
 
+// Direct call to data.gov.sg only. The previous fallback re-sent failed requests through a public
+// third-party proxy (allorigins.win); removed so no request from this page is routed via a server
+// we don't control. data.gov.sg needs no key, but the same rule applies to every call here.
 async function fetchJsonResilient(url){
   let res;
   try{
     res = await fetch(url);
   }catch(networkErr){
     logApiError("data.gov.sg direct fetch failed: " + url, networkErr);
-    try{
-      const proxied = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
-      const res2 = await fetch(proxied);
-      if(!res2.ok) throw new Error("HTTP " + res2.status);
-      return await res2.json();
-    }catch(proxyErr){
-      logApiError("data.gov.sg fallback proxy also failed: " + url, proxyErr);
-      throw new Error(
-        "Couldn't reach data.gov.sg directly (" + networkErr.message + "), and the fallback proxy also failed (" + proxyErr.message + ")."
-      );
-    }
+    throw new Error(
+      "Couldn't reach data.gov.sg (" + networkErr.message + "). This is usually a network problem or the browser blocking a cross-origin request. ResaleWatch no longer retries through a third-party proxy."
+    );
   }
   if(!res.ok){
     const body = await res.text().catch(() => "");
@@ -412,30 +407,20 @@ const URA_DATA_URL = "https://eservice.ura.gov.sg/uraDataService/invokeUraDS/v1?
 const SALE_TYPE_LABELS = { "1": "New Sale", "2": "Sub Sale", "3": "Resale" };
 const SEGMENT_LABELS = { CCR: "Core Central Region", RCR: "Rest of Central Region", OCR: "Outside Central Region" };
 
-// URA's entire API (every endpoint, per their official docs) authenticates via custom HTTP headers
-// only — there's no query-param alternative. Custom headers trigger a CORS preflight, and URA's
-// server doesn't appear to handle that for browser origins, causing the direct fetch to fail before
-// a response ever comes back. corsproxy.io is used as a fallback here (not the allorigins.win proxy
-// used elsewhere in this app) specifically because it forwards request headers through to the target
-// server — allorigins.win doesn't. Its free tier is scoped to specific known dev origins (including
-// localhost), so this may behave differently once deployed somewhere else.
+// URA's API authenticates with custom HTTP headers (AccessKey, then Token). Custom headers trigger a
+// CORS preflight, which URA's server may not answer for browser origins. The previous fallback sent
+// those headers — your AccessKey and token — through corsproxy.io, a third party. That's removed:
+// credentials must only travel to URA itself. If the browser blocks the direct call, the fix is a
+// proxy YOU control (e.g. a small serverless function holding the key), not a public one.
 async function fetchWithHeaderForwardingFallback(url, headers, context){
   try{
-    const res = await fetch(url, { headers });
-    return res;
+    return await fetch(url, { headers });
   }catch(directErr){
-    logApiError(context + ": direct fetch failed, trying header-forwarding proxy", directErr);
-    try{
-      const proxied = "https://corsproxy.io/?url=" + encodeURIComponent(url);
-      const res = await fetch(proxied, { headers });
-      return res;
-    }catch(proxyErr){
-      logApiError(context + ": header-forwarding proxy also failed", proxyErr);
-      throw new Error(
-        "Couldn't reach URA directly (" + directErr.message + "), and the corsproxy.io fallback also failed (" + proxyErr.message + "). " +
-        "URA's API only supports header-based auth (no query-param option), which needs explicit CORS support this server may not provide."
-      );
-    }
+    logApiError(context + ": direct fetch failed (no proxy fallback, by design)", directErr);
+    throw new Error(
+      "Couldn't reach URA directly (" + directErr.message + "). URA's API only supports header-based auth, which browsers may block cross-origin. " +
+      "For your AccessKey's safety, ResaleWatch doesn't route it through a third-party proxy; a proxy you control would be needed if this keeps failing."
+    );
   }
 }
 
@@ -575,7 +560,7 @@ function PrivatePanel(){
       ),
       connectError ? h("div", { className: "status-box error", style: { marginTop: "14px" } }, connectError) : null,
       h("p", { style: { fontSize: "0.78rem", color: "var(--ink-soft)", marginTop: "14px" } },
-        "Heads up: URA authenticates with custom headers rather than a simple key-in-the-URL, which browsers are stricter about allowing cross-origin. If a direct connection is blocked, this automatically retries through corsproxy.io, which forwards those headers through — that works from localhost and a few other known dev origins on its free tier, but may need a different setup once deployed elsewhere. If it still fails, the error above will say exactly why."
+        "Heads up: URA authenticates with custom headers rather than a simple key-in-the-URL, which browsers are stricter about allowing cross-origin. Your AccessKey is only ever sent directly to URA — there is no third-party proxy fallback — so if your browser blocks the direct connection, the error above will say so, and a proxy you control would be needed."
       )
     );
   }
@@ -665,7 +650,7 @@ function PrivatePanel(){
     h("div", { className: "dim-divider" }, "DATA SOURCE"),
     h("div", { className: "disclaimer" },
       h("strong", null, "About this data: "),
-      "From URA's REALIS Data Service (PMI_Resi_Transaction) — private, non-landed residential transactions from the past 5 years, updated by URA at end-of-day every Tuesday and Friday. URA splits this into 4 batches by postal district (1: districts 01–07, 2: 08–14, 3: 15–21, 4: 22–28) rather than by date, so switch batches to see other parts of Singapore, not older data — each batch is fetched whole (no server-side search, so filtering and sorting above happens in your browser after loading). \"Region\" refers to URA's Core Central / Rest of Central / Outside Central Region classification. $PSF is derived from area in sqm (× 10.7639) and isn't an official URA figure. This requires your own free URA AccessKey. URA's API authenticates with custom HTTP headers on every endpoint (confirmed against their own docs — there's no query-param alternative), which browsers block cross-origin by default; if a direct connection fails, this automatically retries through corsproxy.io, one of the few free proxies that forwards those headers through rather than just mirroring a plain GET. That fallback's free tier covers localhost and a handful of other dev origins — if it still fails after that retry, check the browser console for the exact logged error. Not investment advice."
+      "From URA's REALIS Data Service (PMI_Resi_Transaction) — private, non-landed residential transactions from the past 5 years, updated by URA at end-of-day every Tuesday and Friday. URA splits this into 4 batches by postal district (1: districts 01–07, 2: 08–14, 3: 15–21, 4: 22–28) rather than by date, so switch batches to see other parts of Singapore, not older data — each batch is fetched whole (no server-side search, so filtering and sorting above happens in your browser after loading). \"Region\" refers to URA's Core Central / Rest of Central / Outside Central Region classification. $PSF is derived from area in sqm (× 10.7639) and isn't an official URA figure. This requires your own free URA AccessKey. URA's API authenticates with custom HTTP headers on every endpoint (confirmed against their own docs — there's no query-param alternative), which browsers block cross-origin by default; your AccessKey is only ever sent directly to URA (there is no third-party proxy fallback), so if the browser blocks the direct connection the error will say so — check the browser console for the exact logged error. Not investment advice."
     )
   );
 }
